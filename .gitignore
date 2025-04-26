@@ -1,0 +1,8 @@
+.env
+composer.lock
+/vendor/
+composer.lock
+info.php
+/app/storage/cache/
+/.idx/
+/.vscode/
