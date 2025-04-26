@@ -1,0 +1,165 @@
+#!/usr/bin/env php
+<?php
+    require __DIR__ . '/vendor/autoload.php';
+
+    use Database\Migrations\CreateUsersTable;
+
+    use Database\Seeders\UserSeeder;
+
+    $command = $argv[1] ?? null;
+    $options = array_slice($argv, 2);
+
+    $migration = [
+        new CreateUsersTable()
+    ];
+
+    $seed = [
+        new UserSeeder()
+    ];
+
+    switch ($command) {
+        case 'migrate':
+            {
+                $className = null;
+                foreach ($options as $option) {
+                    if (strpos($option, '--class=') === 0) {
+                        $className = substr($option, 8); // Ambil nama class setelah --class=
+                    }
+                }
+
+                if ($className) {
+                    $migrationClass = "Database\\Migrations\\$className";
+                    if (class_exists($migrationClass)) {
+                        echo "Running Migration : $className...\n";
+                        $migration = new $migrationClass();
+                        $migration->up();
+                        echo "Migration completed for $className.\n";
+                    } else {
+                        echo "Migration class '$className' not found.\n";
+                    }
+                } else {
+                    echo "Migrate all available Migration...\n";
+
+                    foreach ($migration as $migration) {
+                        $migration->up();
+                    }
+
+                    echo "Migration complete.\n";
+                }
+            }
+        break;
+
+        case 'rollback':
+            {
+                $className = null;
+                foreach ($options as $option) {
+                    if (strpos($option, '--class=') === 0) {
+                        $className = substr($option, 8); // Ambil nama class setelah --class=
+                    }
+                }
+
+                if ($className) {
+                    $migrationClass = "Database\\Migrations\\$className";
+                    if (class_exists($migrationClass)) {
+                        echo "Running Rollback : $className...\n";
+                        $migration = new $migrationClass();
+                        $migration->down();
+                        echo "Rollback completed for $className.\n";
+                    } else {
+                        echo "Rollback class '$className' not found.\n";
+                    }
+                } else {
+                    echo "Rollback all available...\n";
+
+                    foreach ($migration as $migration) {
+                        $migration->down();
+                    }
+
+                    echo "Rollback complete.\n";
+                }
+            }
+        break;
+
+        case 'seed': 
+            {
+                $className = null;
+                foreach ($options as $option) {
+                    if (strpos($option, '--class=') === 0) {
+                        $className = substr($option, 8); // Ambil nama class setelah --class=
+                    }
+                }
+
+                if ($className) {
+                    $seederClass = "Database\\Seeders\\$className";
+                    if (class_exists($seederClass)) {
+                        echo "Running seeder: $className...\n";
+                        $seeder = new $seederClass();
+                        $seeder->run();
+                        echo "Seeding completed for $className.\n";
+                    } else {
+                        echo "Seeder class '$className' not found.\n";
+                    }
+                } else {
+                    echo "Seeding all available seeders...\n";
+
+                    foreach ($seed as $seed) {
+                        $seed->run();
+                    }
+
+                    echo "Seeding complete.\n";
+                }
+            }
+        break;
+
+        case 'migrate:refresh': // Menghapus tabel lalu membuat ulang tanpa menjalankan seeder.
+            {
+                echo "Refreshing migrations...\n";
+                $className = null;
+                foreach ($options as $option) {
+                    if (strpos($option, '--class=') === 0) {
+                        $className = substr($option, 8); // Ambil nama class setelah --class=
+                    }
+                }
+
+                if ($className) {
+                    $migrationClass = "Database\\Migrations\\$className";
+                    if (class_exists($migrationClass)) {
+                        echo "Running Refreshing Migration : $className...\n";
+                        $migration = new $migrationClass();
+                        $migration->up();
+                        echo "Refreshing Migration completed for $className.\n";
+                    } else {
+                        echo "Refreshing Migration class '$className' not found.\n";
+                    }
+                } else {
+                    echo "Refreshing Migrate all available...\n";
+
+                    foreach ($migration as $migration) {
+                        $migration->down();
+                        $migration->up();
+                    }
+
+                    echo "Refreshing Migration complete.\n";
+                }
+            }
+        break;
+
+        case 'migrate:fresh': // Menghapus tabel, membuat ulang, lalu menjalankan seeder.
+            echo "Dropping all tables and re-running migrations...\n";
+            
+            foreach ($migration as $migration) {
+                $migration->down();
+                $migration->up();
+            }
+
+            foreach ($seed as $seed) {
+                $seed->run();
+            }
+
+            echo "Fresh migration complete.\n";
+        break;
+        
+        default:
+            echo "Command not recognized.\n";
+    }
+?>
