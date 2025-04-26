@@ -10,7 +10,7 @@
 
 1. **Clone Proyek**:
    ```sh
-   git clone https://github.com/Chandra2004/Kiwkiw-Native.git
+   git clone https://github.com/Chandra2004/THE-FRAMEWORK.git
    cd Kiwkiw-Native
    ```
 
