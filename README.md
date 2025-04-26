@@ -46,7 +46,7 @@
 ## 📂 Struktur Direktori
 
 ```
-Kiwkiw-Native/
+THE-FRAMEWORK/
 ├── app/
 │   ├── App/
 │   │   ├── Blueprint.php
@@ -342,4 +342,4 @@ Kami menyambut kontribusi untuk meningkatkan Kiwkiw! Silakan buat pull request a
 - **Email**: chandratriantomo123@gmail.com
 - **Website**: https://www.kiwkiw-native.free.nf
 
-Terima kasih telah menggunakan **Kiwkiw-Native**! 🚀
+Terima kasih telah menggunakan **THE FRAMEWORK**! 🚀
