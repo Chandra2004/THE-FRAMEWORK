@@ -1,0 +1,142 @@
+<?php
+    require __DIR__ . '/vendor/autoload.php';
+
+    function output($status, $message) {
+        $statusStyle = [
+            'success' => ["\033[42;30m", "✔️ "], // Background Hijau, Teks Hitam
+            'error'   => ["\033[41;37m", "❌ "], // Background Merah, Teks Putih
+            'info'    => ["\033[44;37m", "ℹ️   "], // Background Biru, Teks Putih
+            'reset'   => "\033[0m"             // Reset Warna
+        ];
+    
+        // Cek apakah status tersedia
+        if (isset($statusStyle[$status])) {
+            $color = $statusStyle[$status][0];
+            $icon = $statusStyle[$status][1];
+    
+            // Tambahkan padding untuk efek blok
+            $formattedMessage = "  $icon " . strtoupper($status) . ": $message  ";
+    
+            // Tampilkan dengan blok warna
+            echo $color . $formattedMessage . $statusStyle['reset'] . "\n";
+        } else {
+            // Default jika status tidak dikenal
+            echo $statusStyle['reset'] . "UNKNOWN STATUS: $message\n";
+        }
+    }
+    
+
+    function handleMigration($className = null, $action = 'up') {
+        $migrationDir = __DIR__ . '/database/migrations/';
+        $migrationFiles = glob($migrationDir . '*.php');
+
+        if ($className) {
+            $migrationClass = "Database\\Migrations\\$className";
+            if (class_exists($migrationClass)) {
+                output('info', "Running Migration: $className...");
+                (new $migrationClass())->$action();
+                output('success', "Migration $action completed for $className.");
+            } else {
+                output('error', "Migration class '$className' not found.");
+            }
+        } else {
+            output('info', ucfirst($action) . " all available migrations...");
+            foreach ($migrationFiles as $file) {
+                require_once $file;
+                $className = 'Database\\Migrations\\' . pathinfo($file, PATHINFO_FILENAME);
+                if (class_exists($className)) {
+                    (new $className())->$action();
+                    output('success', "Migration $action completed for " . pathinfo($file, PATHINFO_FILENAME));
+                }
+            }
+        }
+    }
+
+    function handleSeeder($className = null) {
+        $seederDir = __DIR__ . '/database/seeders/';
+        $seederFiles = glob($seederDir . '*.php');
+
+        if ($className) {
+            $seederClass = "Database\\Seeders\\$className";
+            if (class_exists($seederClass)) {
+                output('info', "Running Seeder: $className...");
+                (new $seederClass())->run();
+                output('success', "Seeding completed for $className.");
+            } else {
+                output('error', "Seeder class '$className' not found.");
+            }
+        } else {
+            output('info', "Running all available seeders...");
+            foreach ($seederFiles as $file) {
+                require_once $file;
+                $className = 'Database\\Seeders\\' . pathinfo($file, PATHINFO_FILENAME);
+                if (class_exists($className)) {
+                    (new $className())->run();
+                    output('success', "Seeding completed for " . pathinfo($file, PATHINFO_FILENAME));
+                }
+            }
+        }
+    }
+
+    function handleServe() {
+        output('info', "Starting development server at http://localhost:8080...");
+        shell_exec("php -S localhost:8080 -t htdocs");
+    }
+
+    function parseOptions($options) {
+        foreach ($options as $option) {
+            if (strpos($option, '--class=') === 0) {
+                return substr($option, 8);
+            }
+        }
+        return null;
+    }
+
+    // Mendapatkan perintah dari CLI
+    $command = $argv[1] ?? null;
+    $options = array_slice($argv, 2);
+    $className = parseOptions($options);
+
+    // Daftar perintah CLI
+    switch ($command) {
+        case 'migrate':
+            handleMigration($className);
+            break;
+
+        case 'rollback':
+            handleMigration($className, 'down');
+            break;
+
+        case 'seed':
+            handleSeeder($className);
+            break;
+
+        case 'migrate:refresh':
+            output('info', "Refreshing migrations...");
+            handleMigration($className, 'down');
+            handleMigration($className, 'up');
+            break;
+
+        case 'migrate:fresh':
+            output('info', "Dropping all tables and re-running migrations with seeding...");
+            handleMigration(null, 'down');
+            handleMigration(null, 'up');
+            handleSeeder();
+            break;
+        
+        case 'serve':
+            handleServe();
+            break;
+
+        default:
+            output('error', "Command not recognized. 
+    Available commands:
+    - migrate [--class=ClassName]
+    - rollback [--class=ClassName]
+    - seed [--class=ClassName]
+    - migrate:refresh
+    - migrate:fresh
+    - serve");
+            break;
+    }
+?>

@@ -1,0 +1,1730 @@
+## 📂 Struktur Direktori
+
+```
+Kiwkiw-Native/
+├── app/
+│   ├── App/
+│   │   ├── Blueprint.php
+│   │   ├── CacheManager.php
+│   │   ├── Config.php
+│   │   ├── Database.php
+│   │   ├── ImageOptimizer.php
+│   │   ├── Router.php
+│   │   ├── Schema.php
+│   │   └── View.php
+│   ├── Controller/
+│   │   ├── ErrorController.php
+│   │   └── HomeController.php
+│   ├── Database/
+│   │   └── Migration.php
+│   ├── Middleware/
+│   │   ├── Middleware.php
+│   │   ├── CsrfMiddleware.php
+│   │   └── AuthMiddleware.php
+│   ├── Models/
+│   │   ├── Seeders/
+│   │   │   └── User.php
+│   │   └── HomeModel.php
+│   ├── Storage/
+│   │   └── cache/
+│   │       ├── views/
+│   │       └── routes.cache
+│   ├── View/
+│   │   ├── error/
+│   │   │   ├── error404.blade.php
+│   │   │   └── error500.blade.php
+│   │   └── interface/
+│   │       ├── detail.blade.php
+│   │       ├── home.blade.php
+│   │       └── user.blade.php
+│   └── BladeInit.php
+│   └── helpers.php
+├── database/
+│   ├── migrations/
+│   │   └── CreateUsersTable.php
+│   └── seeders/
+│       └── UserSeeder.php
+├── htdocs/
+│   ├── .htaccess
+│   ├── file.php
+│   └── index.php
+├── private-uploads/
+├── vendor/
+├── .env
+├── gitignore
+├── artisan
+├── artisan.bat
+├── composer.json
+├── composer.lock
+├── README.md
+└── update-namespace.php
+```
+
+---
+
+app/App/Blueprint.php :
+<?php
+    namespace {{NAMESPACE}}\App;
+
+    class Blueprint {
+        private $table;
+        private $columns = [];
+        private $primaryKey = null;
+
+        public function __construct($table) {
+            $this->table = $table;
+        }
+
+        public function increments($column) {
+            $this->columns[] = "`$column` INT UNSIGNED AUTO_INCREMENT";
+            $this->primaryKey = "`$column`";
+            return $this;
+        }
+
+        public function string($column, $length = 255) {
+            $this->columns[] = "`$column` VARCHAR($length)";
+            return $this;
+        }
+
+        public function integer($column, $unsigned = false) {
+            $unsigned = $unsigned ? " UNSIGNED" : "";
+            $this->columns[] = "`$column` INT$unsigned";
+            return $this;
+        }
+
+        public function text($column) {
+            $this->columns[] = "`$column` TEXT";
+            return $this;
+        }
+
+        public function boolean($column) {
+            $this->columns[] = "`$column` TINYINT(1)";
+            return $this;
+        }
+
+        public function timestamp($column) {
+            $this->columns[] = "`$column` TIMESTAMP DEFAULT CURRENT_TIMESTAMP";
+            return $this;
+        }
+
+        public function nullable() {
+            $lastColumn = array_pop($this->columns);
+            $this->columns[] = $lastColumn . " NULL";
+            return $this;
+        }
+
+        public function unique() {
+            $lastColumn = explode(' ', $this->columns[count($this->columns) - 1])[0];
+            $this->columns[] = "UNIQUE ($lastColumn)";
+            return $this;
+        }
+
+        public function default($value) {
+            $lastColumn = array_pop($this->columns);
+            $defaultValue = is_string($value) ? "'$value'" : $value;
+            $this->columns[] = $lastColumn . " DEFAULT $defaultValue";
+            return $this;
+        }
+
+        public function getColumns() {
+            return $this->columns;
+        }
+
+        public function getPrimaryKey() {
+            return $this->primaryKey;
+        }
+    }
+?>
+
+app/App/CacheManager.php :
+<?php
+    namespace {{NAMESPACE}}\App;
+
+    use {{NAMESPACE}}\App\Config;
+    use Exception;
+
+    class CacheManager {
+        /**
+         * Mengambil data dari cache jika tersedia, atau menyimpan hasil callback ke cache.
+         *
+         * @param string $key Kunci cache
+         * @param int $ttl Waktu hidup cache dalam detik
+         * @param callable $callback Fungsi untuk menghasilkan data jika tidak ada di cache
+         * @return mixed Data yang diambil dari cache atau hasil callback
+         */
+        public static function remember($key, $ttl, $callback) {
+            try {
+                $redis = Config::redis();
+                $cached = $redis->get($key);
+
+                if ($cached) {
+                    return json_decode($cached, true);
+                }
+
+                $data = $callback();
+                $redis->setex($key, $ttl, json_encode($data));
+                return $data;
+            } catch (Exception $e) {
+                return $callback();
+            }
+        }
+
+        /**
+         * Menghapus data dari cache berdasarkan kunci tertentu.
+         *
+         * @param string $key Kunci cache yang akan dihapus
+         * @return bool True jika berhasil dihapus, false jika gagal
+         */
+        public static function forget($key) {
+            try {
+                $redis = Config::redis();
+                return $redis->del($key) > 0;
+            } catch (Exception $e) {
+                return false;
+            }
+        }
+    }
+?>
+
+app/App/Config.php :
+<?php
+    namespace {{NAMESPACE}}\app;
+
+    use Dotenv\Dotenv;
+    use Predis\Client;
+
+    class Config {
+        private static $redis;
+
+        public static function loadEnv() {
+            $dotenv = Dotenv::createImmutable(__DIR__ . '/../../');
+            $dotenv->load();
+        }
+
+        public static function get($key) {
+            return $_ENV[$key] ?? null;
+        }
+
+        public static function redis() {
+            if (!self::$redis) {
+                self::$redis = new Client([
+                    'scheme' => 'tcp',
+                    'host'   => self::get('REDIS_HOST') ?? '127.0.0.1',
+                    'port'   => self::get('REDIS_PORT') ?? 6379,
+                ]);
+            }
+            return self::$redis;
+        }
+    }
+?>
+
+app/App/Database.php :
+<?php
+    namespace {{NAMESPACE}}\App;
+
+    use PDO;
+    use PDOException;
+    use {{NAMESPACE}}\App\Config;
+
+    class Database {
+        private static $instance = null;
+        private $dbh;
+        private $stmt;
+
+        private function __construct() {
+            $this->connect();
+        }
+
+        public static function getInstance() {
+            if (!self::$instance) {
+                self::$instance = new self();
+            }
+            return self::$instance;
+        }
+
+        private function connect() {
+            Config::loadEnv();
+
+            $host = Config::get('DB_HOST');
+            $dbname = Config::get('DB_NAME');
+            $user = Config::get('DB_USER');
+            $pass = Config::get('DB_PASS');
+
+            if (empty($host) || empty($dbname) || empty($user)) {
+                throw new PDOException("Database configuration is incomplete");
+            }
+
+            $dsn = "mysql:host=$host;dbname=$dbname;charset=utf8mb4";
+
+            try {
+                $this->dbh = new PDO($dsn, $user, $pass, [
+                    PDO::ATTR_PERSISTENT => true,
+                    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                    PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8mb4",
+                    PDO::ATTR_EMULATE_PREPARES => false
+                ]);
+            } catch (PDOException $e) {
+                error_log("Database Connection Error: " . $e->getMessage());
+                throw new PDOException("Database connection failed. Check error logs for details.");
+            }
+        }
+
+        /**
+         * Prepare SQL query
+         * @param string $sql
+         */
+        public function query($sql) {
+            $this->stmt = $this->dbh->prepare($sql);
+        }
+
+        /**
+         * Bind parameters to prepared statement
+         * @param string $param
+         * @param mixed $value
+         * @param int|null $type
+         */
+        public function bind($param, $value, $type = null) {
+            if (is_null($type)) {
+                switch (true) {
+                    case is_int($value):
+                        $type = PDO::PARAM_INT;
+                        break;
+                    case is_bool($value):
+                        $type = PDO::PARAM_BOOL;
+                        break;
+                    case is_null($value):
+                        $type = PDO::PARAM_NULL;
+                        break;
+                    default:
+                        $type = PDO::PARAM_STR;
+                }
+            }
+            $this->stmt->bindValue($param, $value, $type);
+        }
+
+        /**
+         * Execute the prepared statement
+         * @return bool
+         */
+        public function execute() {
+            try {
+                return $this->stmt->execute();
+            } catch (PDOException $e) {
+                error_log("Query Execution Error: " . $e->getMessage());
+                throw new PDOException("Database operation failed");
+            }
+        }
+
+        /**
+         * Get result set as array of rows
+         * @return array
+         */
+        public function resultSet() {
+            $this->execute();
+            return $this->stmt->fetchAll();
+        }
+
+        /**
+         * Get single row
+         * @return mixed
+         */
+        public function single() {
+            $this->execute();
+            return $this->stmt->fetch();
+        }
+
+        /**
+         * Get row count
+         * @return int
+         */
+        public function rowCount() {
+            return $this->stmt->rowCount();
+        }
+
+        // Transaction methods
+        public function beginTransaction() {
+            return $this->dbh->beginTransaction();
+        }
+
+        public function commit() {
+            return $this->dbh->commit();
+        }
+
+        public function rollBack() {
+            return $this->dbh->rollBack();
+        }
+
+        // Prevent cloning
+        private function __clone() { }
+
+        // Prevent unserialization
+        public function __wakeup() {
+            throw new PDOException("Cannot unserialize database connection");
+        }
+    }
+?>
+
+app/App/ImageOptimizer.php :
+<?php
+    namespace {{NAMESPACE}}\App;
+
+    use Spatie\ImageOptimizer\OptimizerChainFactory;
+
+    class ImageOptimizer
+    {
+        public static function optimizeImage($filePath)
+        {
+            $optimizerChain = OptimizerChainFactory::create();
+
+            try {
+                $optimizerChain->optimize($filePath);
+                echo "Image optimized: $filePath";
+            } catch (\Exception $e) {
+                echo "Failed to optimize image: " . $e->getMessage();
+            }
+        }
+    }
+?> 
+
+app/App/Router.php :
+<?php
+    namespace {{NAMESPACE}}\App;
+
+    use {{NAMESPACE}}\App\Config;
+    use {{NAMESPACE}}\Controller\ErrorController;
+    use Exception;
+
+    class Router {
+        private static array $routes = [];
+        private static bool $routeFound = false;
+
+        public static function add(string $method, string $path, string $controller, string $function, array $middlewares = []) {
+            $patternPath = preg_replace('/\{([a-z]+)\}/', '(?P<$1>[^/]+)', $path);
+            $compiledPattern = "#^" . $patternPath . "$#i";
+
+            self::$routes[] = [
+                'method' => strtoupper($method),
+                'path' => $compiledPattern,
+                'controller' => $controller,
+                'function' => $function,
+                'middleware' => $middlewares
+            ];
+        }
+
+        public static function run() {
+            if (session_status() === PHP_SESSION_NONE) {
+                session_start();
+            }
+
+            Config::loadEnv();
+
+            if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+                header('Access-Control-Allow-Origin: *');
+                header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
+                header('Access-Control-Allow-Headers: Content-Type, Authorization');
+                exit;
+            }
+
+            if (Config::get('APP_ENV') === 'production') {
+                error_reporting(0);
+                ini_set('display_errors', '0');
+                ini_set('log_errors', '1');
+            } else {
+                error_reporting(E_ALL);
+                ini_set('display_errors', '1');
+            }
+
+            $path = $_SERVER['PATH_INFO'] ?? '/';
+            $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+
+            try {
+                foreach (self::$routes as $route) {
+                    if ($method !== $route['method']) continue;
+
+                    if (preg_match($route['path'], $path, $matches)) {
+                        // Jalankan middleware sebelum request diproses
+                        foreach ($route['middleware'] as $middleware) {
+                            $instance = new $middleware();
+                            $instance->before(); // Middleware menangani exit jika ada error
+                        }
+
+                        if (!class_exists($route['controller'])) {
+                            throw new Exception("Controller {$route['controller']} tidak ditemukan");
+                        }
+
+                        $controller = new $route['controller']();
+                        $function = $route['function'];
+
+                        if (!method_exists($controller, $function)) {
+                            throw new Exception("Method {$function} tidak ditemukan di {$route['controller']}");
+                        }
+
+                        $params = array_filter($matches, 'is_string', ARRAY_FILTER_USE_KEY);
+
+                        call_user_func_array([$controller, $function], $params);
+                        self::$routeFound = true;
+                        return;
+                    }
+                }
+
+                if (!self::$routeFound) {
+                    self::handle404();
+                }
+            } catch (Exception $e) {
+                self::handle500($e);
+            }
+        }
+
+        private static function handleAbort($message = "Akses ditolak") {
+            http_response_code(403);
+
+            if (Config::get('APP_ENV') !== 'production') {
+                echo "<strong>403 Forbidden</strong><br>";
+                echo "<strong>Alasan:</strong> $message<br>";
+            } else {
+                echo "Akses ditolak";
+            }
+
+            exit;
+        }
+
+        private static function handle500(Exception $e) {
+            http_response_code(500);
+
+            if (Config::get('APP_ENV') === 'production') {
+                $controller = new ErrorController();
+                $controller->error500();
+            } else {
+                echo "Error 500: Internal Server Error<br>";
+                echo "<strong>Pesan:</strong> " . $e->getMessage() . "<br>";
+                echo "<strong>File:</strong> " . $e->getFile() . "<br>";
+                echo "<strong>Baris:</strong> " . $e->getLine() . "<br>";
+            }
+
+            exit;
+        }
+
+        private static function handle404() {
+            http_response_code(404);
+            $controller = new ErrorController();
+            $controller->error404();
+            exit;
+        }
+
+        public static function cacheRoutes() {
+            if (Config::get('APP_ENV') === 'production') {
+                $cacheDir = __DIR__ . '/../storage/cache';
+                $cacheFile = $cacheDir . '/routes.cache';
+
+                if (!file_exists($cacheDir)) {
+                    mkdir($cacheDir, 0755, true);
+                }
+
+                if (!file_exists($cacheFile)) {
+                    file_put_contents($cacheFile, '<?php return ' . var_export(self::$routes, true) . ';');
+                }
+            }
+        }
+    }
+?>
+
+app/App/Schema.php :
+<?php
+    namespace {{NAMESPACE}}\App;
+
+    use Closure;
+    use {{NAMESPACE}}\App\Database;
+    use {{NAMESPACE}}\App\Blueprint;
+
+    class Schema {
+        public static function create($table, Closure $callback) {
+            $db = Database::getInstance();
+            $blueprint = new Blueprint($table);
+            $callback($blueprint);
+
+            $sql = "CREATE TABLE IF NOT EXISTS `$table` (";
+            $sql .= implode(", ", $blueprint->getColumns());
+
+            if ($blueprint->getPrimaryKey()) {
+                $sql .= ", PRIMARY KEY (" . $blueprint->getPrimaryKey() . ")";
+            }
+
+            $sql .= ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;";
+            
+            $db->query($sql);
+            $db->execute();
+        }
+
+        public static function dropIfExists($table) {
+            $db = Database::getInstance();
+            $sql = "DROP TABLE IF EXISTS `$table`;";
+            $db->query($sql);
+            $db->execute();
+        }
+    }
+?>
+
+app/App/View.php :
+<?php
+    namespace {{NAMESPACE}}\app;
+
+    use {{NAMESPACE}}\BladeInit;
+    
+    class View {
+        public static function render($view, $data = []) {
+            echo BladeInit::getInstance()->make($view, $data)->render();
+        }
+    }
+?>
+
+app/Controller/ErrorController.php :
+<?php
+    namespace {{NAMESPACE}}\Controller;
+
+    use {{NAMESPACE}}\App\Config;
+    use {{NAMESPACE}}\App\View;
+
+    class ErrorController
+    {
+        function error404() {
+            $model = [];
+
+            View::render('error.error404', $model);
+        }
+        
+        function error500() {
+            $model = [];
+
+            View::render('error.error500', $model);
+        }
+    }
+?>
+
+app/Controller/HomeController.php :
+<?php
+    namespace {{NAMESPACE}}\Controller;
+
+    use Spatie\ImageOptimizer\OptimizerChainFactory;
+    use {{NAMESPACE}}\App\{Config, Database, View, CacheManager};
+    use {{NAMESPACE}}\Models\HomeModel;
+    use Exception;
+
+    class HomeController {
+        private $homeModel;
+
+        public function __construct() {
+            $this->homeModel = new HomeModel();
+        }
+
+        public function index() {
+            View::render('interface.home', ['status' => $this->checkDatabaseConnection()]);
+        }
+
+        public function user() {
+            View::render('interface.user', [
+                'userData' => $this->homeModel->getUserData()['users'] ?? [],
+                'status' => $this->checkDatabaseConnection(),
+            ]);
+        }
+
+        public function detail(string $id) {
+            $userDetail = $this->homeModel->getUserDetail($id);
+            if (!$userDetail) return $this->redirectToNotFound();
+            
+            View::render('interface.detail', [
+                'userData' => $this->homeModel->getUserData()['users'] ?? [],
+                'user' => $userDetail,
+            ]);
+        }
+
+        public function deleteUser(string $id) {
+            try {
+                $this->homeModel->deleteUserData($id);
+                CacheManager::forget(['all_users', "user_detail:{$id}"]);
+                $this->redirect('/user', 'success', 'User deleted successfully');
+            } catch (Exception $e) {
+                $this->redirect('/user', 'error', $e->getMessage());
+            }
+        }
+
+        public function createUser() {
+            if ($_SERVER['REQUEST_METHOD'] !== 'POST') return View::render('interface.user');
+        
+            $name = $_POST['name'] ?? '';
+            $email = $_POST['email'] ?? '';
+            $profilePicture = $_FILES['profile_picture'] ?? null;
+        
+            if (empty($name) || empty($email)) {
+                return View::render('interface.user', ['error' => "Name and email cannot be empty"]);
+            }
+        
+            $fileName = null; // Default null jika tidak ada foto
+            if ($profilePicture && $profilePicture['error'] === UPLOAD_ERR_OK) {
+                $fileName = $this->processImage($profilePicture);
+                if ($fileName instanceof Exception) {
+                    return View::render('interface.user', ['error' => $fileName->getMessage()]);
+                }
+            }
+        
+            try {
+                $db = Database::getInstance();
+                $db->query("INSERT INTO users (name, email, profile_picture) VALUES (:name, :email, :profile_picture)");
+                
+                $db->bind(':name', $name);
+                $db->bind(':email', $email);
+                $db->bind(':profile_picture', $fileName); // Bisa null jika tidak ada foto
+                
+                $db->execute();
+                $this->redirect('/user');
+            } catch (Exception $e) {
+                View::render('interface.user', ['error' => "Failed to save user data: " . $e->getMessage()]);
+            }
+        }        
+
+        public function updateUser(string $id) {
+            if ($_SERVER['REQUEST_METHOD'] !== 'POST') return $this->redirect("/user/{$id}");
+        
+            $name = $_POST['name'] ?? '';
+            $email = $_POST['email'] ?? '';
+            $profilePicture = $_FILES['profile_picture'] ?? null;
+            $deleteProfilePicture = isset($_POST['delete_profile_picture']); // Cek apakah user ingin menghapus foto
+        
+            if (empty($name) || empty($email)) {
+                return $this->redirect("/user/{$id}", 'error', 'Name and Email cannot be empty');
+            }
+        
+            // Ambil data user lama untuk mempertahankan foto lama jika tidak di-update
+            $userData = $this->homeModel->getUserDetail($id);
+            if (!$userData) {
+                return $this->redirect("/user/{$id}", 'error', 'User not found');
+            }
+        
+            $fileName = $userData['profile_picture']; // Default pakai foto lama
+        
+            // Jika user ingin menghapus foto, set profile_picture ke NULL dan hapus file lama
+            if ($deleteProfilePicture && $fileName) {
+                $uploadDir = __DIR__ . '/../../htdocs/uploads/';
+                $filePath = $uploadDir . $fileName;
+                if (file_exists($filePath)) {
+                    unlink($filePath); // Hapus file dari server
+                }
+                $fileName = null; // Set profile_picture menjadi NULL di database
+            }
+        
+            // Jika user mengunggah foto baru, ganti dengan yang baru
+            if ($profilePicture && $profilePicture['error'] === UPLOAD_ERR_OK) {
+                $fileName = $this->processImage($profilePicture, $id);
+                if ($fileName instanceof Exception) {
+                    return $this->redirect("/user/{$id}", 'error', $fileName->getMessage());
+                }
+            }
+        
+            try {
+                $db = Database::getInstance();
+                $db->query("UPDATE users SET name = :name, email = :email, profile_picture = :profile_picture WHERE id = :id");
+                
+                $db->bind(':name', $name);
+                $db->bind(':email', $email);
+                $db->bind(':profile_picture', $fileName); // Bisa null jika dihapus
+                $db->bind(':id', $id);
+                
+                $db->execute();
+                CacheManager::forget(['all_users', "user_detail:{$id}"]);
+                $this->redirect('/user', 'success', 'User updated successfully');
+            } catch (Exception $e) {
+                $this->redirect("/user/{$id}", 'error', "Failed to update user data: " . $e->getMessage());
+            }
+        }
+                
+
+        private function checkDatabaseConnection() {
+            try {
+                Database::getInstance();
+                return "success";
+            } catch (Exception $e) {
+                return $e->getMessage();
+            }
+        }
+
+        private function processImage($file, $userId = null) {
+            if ($file['error'] !== UPLOAD_ERR_OK) return new Exception("Failed to upload profile picture");
+        
+            $allowedExtensions = ['jpg', 'jpeg', 'png'];
+            $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+            if (!in_array($ext, $allowedExtensions)) return new Exception("Invalid file type");
+        
+            $maxFileSize = 2 * 1024 * 1024;
+            if ($file['size'] > $maxFileSize) return new Exception("File size exceeds 2MB limit");
+        
+            $finfo = finfo_open(FILEINFO_MIME_TYPE);
+            $mime = finfo_file($finfo, $file['tmp_name']);
+            finfo_close($finfo);
+
+            $allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp'];
+            if (!in_array($mime, $allowedMimeTypes)) {
+                return new Exception("Invalid file type.");
+            }
+
+        
+            $uploadDir = dirname(__DIR__, 2) . '/private-uploads/';
+            if (!file_exists($uploadDir)) mkdir($uploadDir, 0777, true);
+        
+            $fileName = uniqid() . '.webp';
+            $filePath = $uploadDir . $fileName;
+            move_uploaded_file($file['tmp_name'], $filePath);
+        
+            $image = imagecreatefromstring(file_get_contents($filePath));
+            if (!$image) return new Exception("Failed to process the image");
+        
+            imagewebp($image, $filePath, 70);
+            imagedestroy($image);
+        
+            OptimizerChainFactory::create()->optimize($filePath);
+        
+            if ($userId) {
+                $oldProfilePicture = $this->homeModel->getUserDetail($userId)['profile_picture'] ?? null;
+                if ($oldProfilePicture && file_exists($uploadDir . $oldProfilePicture)) unlink($uploadDir . $oldProfilePicture);
+            }
+        
+            return $fileName;
+        }        
+
+        private function redirectToNotFound() {
+            header("Location: " . Config::get('BASE_URL') . "/404");
+            exit();
+        }
+
+        private function redirect($url, $status = null, $message = null) {
+            $query = $status ? "?status={$status}&message=" . urlencode($message) : '';
+            header("Location: " . Config::get('BASE_URL') . "{$url}{$query}");
+            exit();
+        }
+    }
+?>
+
+app/Database/Migration.php :
+<?php
+    namespace {{NAMESPACE}}\Database;
+
+    use {{NAMESPACE}}\App\Database;
+
+    abstract class Migration {
+        protected Database $db;
+
+        public function __construct()
+        {
+            $this->db = Database::getInstance();
+        }
+
+        abstract public function up();
+        abstract public function down();
+    }
+?>
+
+app/Middleware/AuthMiddleware.php :
+<?php
+    namespace {{NAMESPACE}}\Middleware;
+
+    use {{NAMESPACE}}\App\Config;
+
+    class AuthMiddleware implements Middleware {
+        function before()
+        {
+            if (session_status() === PHP_SESSION_NONE) {
+                session_start(); // Tambahkan session_start agar tidak error
+            }
+
+            if (!isset($_SESSION['user_id'])) {
+                header('location: ' . Config::get('BASE_URL') . '/login');
+                exit();
+            }
+        }
+    }
+?>
+
+app/Middleware/Middleware.php :
+<?php
+    namespace {{NAMESPACE}}\Middleware;
+
+    interface Middleware {
+        function before();
+    }
+?>
+
+app/Middleware/CsrfMiddleware.php :
+<?php
+    namespace {{NAMESPACE}}\Middleware;
+
+    class CsrfMiddleware implements Middleware {
+        public static function generateToken() {
+            if (session_status() !== PHP_SESSION_ACTIVE) {
+                session_start();
+            }
+            if (empty($_SESSION['csrf_token'])) {
+                $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+            }
+            return $_SESSION['csrf_token'];
+        }
+
+        public static function verifyToken($token) {
+            if (session_status() !== PHP_SESSION_ACTIVE) {
+                session_start();
+            }
+
+            $sessionToken = $_SESSION['csrf_token'] ?? '';
+
+            error_log("SESSION CSRF: " . $sessionToken);
+            error_log("POST CSRF: " . ($token ?: 'TIDAK ADA'));
+
+            return !empty($sessionToken) && !empty($token) && hash_equals($sessionToken, $token);
+        }
+
+        public function before() {
+            if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+                if (session_status() !== PHP_SESSION_ACTIVE) {
+                    session_start();
+                }
+
+                $token = $_POST['_token'] ?? '';
+
+                if (!self::verifyToken($token)) {
+                    http_response_code(403);
+                    echo json_encode(["error" => "Invalid CSRF token."]);
+                    exit;
+                }
+            }
+        }
+    }
+?>
+
+app/Models/Seeders/User.php :
+<?php
+    namespace {{NAMESPACE}}\Models\Seeders;
+
+    use {{NAMESPACE}}\App\Database;
+
+    class User {
+        protected static Database $db;
+
+        public static function create(array $data) {
+            self::$db = Database::getInstance();
+            $columns = implode(", ", array_keys($data));
+            $placeholders = ":" . implode(", :", array_keys($data));
+
+            $sql = "INSERT INTO users ($columns) VALUES ($placeholders)";
+            self::$db->query($sql);
+
+            foreach ($data as $key => $value) {
+                self::$db->bind(":$key", $value);
+            }
+
+            return self::$db->execute();
+        }
+    }
+?>
+
+app/Models/HomeModel.php :
+<?php
+    namespace {{NAMESPACE}}\Models;
+
+    use {{NAMESPACE}}\App\CacheManager;
+    use {{NAMESPACE}}\App\Database;
+    use {{NAMESPACE}}\App\Config;
+
+    class HomeModel {
+        private $db;
+
+        public function __construct()
+        {
+            $this->db = Database::getInstance();
+        }
+
+        public function getUserData() {
+            return CacheManager::remember(
+                'all_users', 
+                60, 
+                function() {
+                    $this->db->query("SELECT * FROM users");
+                    $data['users'] = $this->db->resultSet();
+                    return $data;
+                }
+            );
+        }
+
+        public function getUserDetail($id) {
+            return CacheManager::remember(
+                "user_detail:{$id}", 60, function() use ($id) { 
+                    $this->db->query("SELECT * FROM users WHERE id = :id");
+                    $this->db->bind('id', $id);
+                    $data = $this->db->single();
+                    return $data;
+                }
+            );
+        }
+
+        public function deleteUserData($id) {
+            $this->db->query("SELECT profile_picture FROM users WHERE id = :id");
+            $this->db->bind(':id', $id);
+            $user = $this->db->single();
+            
+
+            if ($user && !empty($user['profile_picture'])) {
+                $filePath = __DIR__ . '/../../htdocs/uploads/' . $user['profile_picture'];
+                if (file_exists($filePath)) {
+                    unlink($filePath);
+                }
+            }
+
+            $this->db->query("DELETE FROM users WHERE id = :id");
+            $this->db->bind(':id', $id);
+            return $this->db->execute();
+        }
+
+        public function updateUserData($id, $name, $email, $profilePicture = null) {
+            $query = "UPDATE users SET name = :name, email = :email" .
+                     ($profilePicture ? ", profile_picture = :profile_picture" : "") .
+                     " WHERE id = :id";
+            $this->db->query($query);
+            $this->db->bind(':name', $name);
+            $this->db->bind(':email', $email);
+            if ($profilePicture) {
+                $this->db->bind(':profile_picture', $profilePicture);
+            }
+            $this->db->bind(':id', $id);
+            return $this->db->execute();
+        }
+    }
+?>
+
+file view difile UI.txt
+
+app/BladeInit.php :
+<?php
+    namespace {{NAMESPACE}};
+
+    use Illuminate\View\Factory;
+    use Illuminate\Events\Dispatcher;
+    use Illuminate\View\Engines\EngineResolver;
+    use Illuminate\View\Engines\PhpEngine;
+    use Illuminate\View\Engines\CompilerEngine;
+    use Illuminate\View\FileViewFinder;
+    use Illuminate\Filesystem\Filesystem;
+    use Illuminate\View\Compilers\BladeCompiler;
+
+    class BladeInit {
+        private static $blade;
+
+        public static function init() {
+            if (!self::$blade) {
+                $filesystem = new Filesystem();
+                $resolver = new EngineResolver();
+
+                $resolver->register('blade', function () use ($filesystem) {
+                    $compiler = new BladeCompiler($filesystem, __DIR__ . '/Storage/cache/views');
+                    // Daftarkan directive @csrf
+                    $compiler->directive('csrf', function () {
+                        return "<?php echo '<input type=\"hidden\" name=\"_token\" value=\"' . \$_SESSION['csrf_token'] . '\">'; ?>";
+                    });                    
+                    return new CompilerEngine($compiler, $filesystem);
+                });
+
+                $resolver->register('php', function () {
+                    return new PhpEngine();
+                });
+
+                $viewPath = [__DIR__ . '/View'];
+                $finder = new FileViewFinder($filesystem, $viewPath);
+
+                self::$blade = new Factory(
+                    $resolver,
+                    $finder,
+                    new Dispatcher()
+                );
+            }
+            return self::$blade;
+        }
+
+        public static function getInstance() {
+            return self::init();
+        }
+    }
+?>
+
+app/helpers.php :
+<?php
+    use {{NAMESPACE}}\App\Config;
+
+    if (!function_exists('url')) {
+        function url($path = '') {
+            return rtrim(Config::get('BASE_URL'), '/') . '/' . ltrim($path, '/');
+        }
+    }
+?>
+
+database/migrations/CreateUserTable.php :
+<?php
+    namespace Database\Migrations;
+
+    use {{NAMESPACE}}\App\Schema;
+
+    class CreateUsersTable {
+        public function up() {
+            Schema::create('users', function ($table) {
+                $table->increments('id');
+                $table->string('name', 100);
+                $table->string('email')->unique();
+                $table->string('password');
+                $table->string('profile_picture')->nullable();
+                $table->boolean('is_active')->default(1);
+                $table->timestamp('created_at');
+                $table->timestamp('updated_at');
+            });
+        }
+
+        public function down() {
+            Schema::dropIfExists('users');
+        }
+    }
+?>
+
+database/seeders/UserSeeder.php :
+<?php
+    namespace Database\Seeders;
+
+    use {{NAMESPACE}}\Models\Seeders\User;
+
+    use Faker\Factory;
+
+    class UserSeeder {
+        private function downloadImage($url, $destination) {
+            $ch = curl_init($url);
+            $fp = fopen($destination, 'wb');
+            curl_setopt($ch, CURLOPT_FILE, $fp);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+            curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+            curl_setopt($ch, CURLOPT_FAILONERROR, true);
+            $success = curl_exec($ch);
+            fclose($fp);
+            curl_close($ch);
+
+            if (!$success) {
+                unlink($destination);
+                throw new \Exception("Failed to download image from $url");
+            }
+        }
+
+        public function run() {
+            $faker = Factory::create();
+            $faker->unique(true); // Reset uniqueness
+            
+            $uploadDir = dirname(__DIR__, 2) . '/private-uploads/';
+            if (!is_dir($uploadDir)) {
+                mkdir($uploadDir, 0777, true);
+            }
+        
+            for ($i = 0; $i < 10; $i++) {
+                $imageUrl = "https://picsum.photos/1920/1080.webp";
+                $uniqueFileName = 'profile_' . uniqid() . '.webp';
+                $imagePath = $uploadDir . $uniqueFileName;
+        
+                try {
+                    $this->downloadImage($imageUrl, $imagePath);
+                    if (!file_exists($imagePath)) {
+                        throw new \Exception("Image not saved at $imagePath");
+                    }
+        
+                    User::create([
+                        'name' => $faker->name,
+                        'email' => $faker->unique()->safeEmail,
+                        'password' => password_hash('password123', PASSWORD_BCRYPT),
+                        'profile_picture' => $uniqueFileName,
+                        'is_active' => 1,
+                        'created_at' => date('Y-m-d H:i:s'),
+                        'updated_at' => date('Y-m-d H:i:s'),
+                    ]);
+        
+                } catch (\Exception $e) {
+                    echo "Error: " . $e->getMessage() . "\n";
+                }
+            }
+        
+            echo "Seeding successful!\n";
+        }
+        
+    }
+?>
+
+htdocs/.htaccess :
+## AWAL HTACCESS
+    # ----------------------------------------------------------------------
+    # 1️⃣ Keamanan: Matikan Directory Listing
+    # ----------------------------------------------------------------------
+    Options All -Indexes
+
+    # ----------------------------------------------------------------------
+    # 2️⃣ Aktifkan Rewrite Engine untuk Routing & Rate-Limiting
+    # ----------------------------------------------------------------------
+    <IfModule mod_rewrite.c>
+        Options +FollowSymlinks
+        RewriteEngine On
+
+        # Ubah base URL jika menggunakan subfolder
+        # RewriteBase /subfolder/
+
+        # Redirect trailing slashes ke URL yang benar (tanpa slash di akhir)
+        RewriteCond %{REQUEST_FILENAME} !-d
+        RewriteCond %{REQUEST_URI} (.+)/$
+        RewriteRule ^ %1 [L,R=301]
+
+        # Redirect www ke non-www (gunakan HTTPS jika perlu)
+        RewriteCond %{HTTPS} !=on
+        RewriteCond %{HTTP_HOST} ^www\.(.+)$ [NC]
+        RewriteRule ^ http://%1%{REQUEST_URI} [R=301,L]
+
+        # Kirim semua request yang bukan file atau folder ke index.php
+        RewriteCond %{REQUEST_FILENAME} !-f
+        RewriteCond %{REQUEST_FILENAME} !-d
+        RewriteRule ^([\s\S]*)$ index.php/$1 [L,NC,QSA]
+
+        # Pastikan Authorization header tetap diteruskan
+        RewriteCond %{HTTP:Authorization} .
+        RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+    </IfModule>
+
+    # ----------------------------------------------------------------------
+    # 3️⃣ Proteksi Rate-Limiting untuk Mencegah Brute-Force & DDoS
+    # ----------------------------------------------------------------------
+    <IfModule mod_ratelimit.c>
+        # Batasi kecepatan setiap koneksi menjadi 100 KB/s
+        SetOutputFilter RATE_LIMIT
+        SetEnv rate-limit 400
+    </IfModule>
+
+    <IfModule mod_rewrite.c>
+        RewriteEngine on
+        # Batasi jumlah request dari satu IP (maksimal 10 request dalam 10 detik)
+        RewriteCond %{REMOTE_ADDR}=<%{TIME}0> (0|1|2|3|4|5|6|7|8|9)
+        RewriteRule ^ - [F,L]
+    </IfModule>
+
+    # ----------------------------------------------------------------------
+    # 4️⃣ Blokir Bot & User-Agent Mencurigakan
+    # ----------------------------------------------------------------------
+    <IfModule mod_rewrite.c>
+        # Blokir user-agent kosong (bot mencurigakan)
+        RewriteCond %{HTTP_USER_AGENT} ^-?$ [NC]
+        RewriteRule .* - [F,L]
+    </IfModule>
+
+    # Blokir bot berbahaya berdasarkan User-Agent
+    SetEnvIfNoCase User-Agent "HTTrack" bad_bot
+    SetEnvIfNoCase User-Agent "wget" bad_bot
+    SetEnvIfNoCase User-Agent "python" bad_bot
+    SetEnvIfNoCase User-Agent "curl" bad_bot
+    SetEnvIfNoCase User-Agent "libwww-perl" bad_bot
+    Deny from env=bad_bot
+
+    # ----------------------------------------------------------------------
+    # 5️⃣ Batasi Ukuran POST Request untuk Mencegah Serangan DoS
+    # ----------------------------------------------------------------------
+    # Batasi ukuran maksimal request POST (misalnya maksimal 2MB)
+    LimitRequestBody 2097152
+
+    # ----------------------------------------------------------------------
+    # 6️⃣ Blokir IP yang Terlalu Banyak Melakukan Request
+    # ----------------------------------------------------------------------
+    <IfModule mod_rewrite.c>
+        RewriteEngine on
+        RewriteCond %{REMOTE_ADDR} ^123\.456\.789\.000$ [OR]
+        RewriteCond %{REMOTE_ADDR} ^111\.222\.333\.444$
+        RewriteRule .* - [F,L]
+    </IfModule>
+
+    # ----------------------------------------------------------------------
+    # 7️⃣ Blokir Akses Langsung ke File PHP di Folder Sensitif (Termasuk Uploads)
+    # ----------------------------------------------------------------------
+    <FilesMatch "\.(php|phtml|php5)$">
+        Deny from all
+    </FilesMatch>
+
+    # Jika ingin mengizinkan akses hanya ke index.php, bisa gunakan ini:
+    # <Files index.php>
+    #     Require all granted
+    # </Files>
+
+    # ----------------------------------------------------------------------
+    # 8️⃣ Batasi Akses Folder Sensitif
+    # ----------------------------------------------------------------------
+    <IfModule mod_autoindex.c>
+        Options -Indexes
+    </IfModule>
+
+    # Blokir akses langsung ke .env file (berisi konfigurasi penting)
+    <Files .env>
+        Order allow,deny
+        Deny from all
+    </Files>
+
+    # Blokir akses langsung ke composer.json dan lock file
+    <FilesMatch "(^composer\.(json|lock)|package(-lock)?\.json)$">
+        Order allow,deny
+        Deny from all
+    </FilesMatch>
+
+    # Blokir akses langsung ke file log
+    <FilesMatch "\.(log|sql)$">
+        Order allow,deny
+        Deny from all
+    </FilesMatch>
+
+    # ----------------------------------------------------------------------
+    # 9️⃣ Keamanan Tambahan: Header HTTP Security
+    # ----------------------------------------------------------------------
+    <IfModule mod_headers.c>
+        Header always set X-Frame-Options "DENY"
+        Header always set X-Content-Type-Options "nosniff"
+        Header always set X-XSS-Protection "1; mode=block"
+        Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        Header always set Referrer-Policy "no-referrer-when-downgrade"
+        Header always set Permissions-Policy "geolocation=(), microphone=(), camera=()"
+    </IfModule>
+
+    # ----------------------------------------------------------------------
+    # 🔟 Nonaktifkan Server Signature (Agar Informasi Server Tidak Bocor)
+    # ----------------------------------------------------------------------
+    ServerSignature Off
+## AKHIR HTACCESS
+
+htdocs/file.php :
+<?php
+    // Cegah akses langsung tanpa parameter
+    if (!isset($_GET['file'])) {
+        die("Access denied.");
+    }
+
+    // Pastikan hanya nama file atau file dalam folder dummy yang diterima
+    $filename = basename($_GET['file']);
+    $subfolder = dirname($_GET['file']); // Ambil subfolder jika ada
+    $allowedFolders = ['dummy']; // Hanya izinkan folder ini
+
+    if ($subfolder !== "." && !in_array($subfolder, $allowedFolders)) {
+        die("Access denied.");
+    }
+
+    // Path lengkap ke file
+    $filepath = __DIR__ . '/../private-uploads/' . ($_GET['file']);
+
+    // Cek apakah file ada
+    if (!file_exists($filepath)) {
+        die("File not found.");
+    }
+
+    // Deteksi MIME type untuk keamanan
+    $finfo = finfo_open(FILEINFO_MIME_TYPE);
+    $mime = finfo_file($finfo, $filepath);
+    finfo_close($finfo);
+
+    // Pastikan hanya gambar yang bisa diakses
+    $allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!in_array($mime, $allowedMimeTypes)) {
+        die("Invalid file type.");
+    }
+
+    // Tampilkan gambar dengan header yang sesuai
+    header("Content-Type: $mime");
+    readfile($filepath);
+    exit;
+?>
+
+
+htdocs/index.php :
+<?php
+    // Pastikan session berjalan sebelum digunakan
+    if (session_status() === PHP_SESSION_NONE) {
+        session_start();
+    }
+
+    // Header keamanan
+    header("X-Powered-By: Native-Chandra");
+    header('X-Frame-Options: DENY'); // Mencegah Clickjacking
+    header('X-Content-Type-Options: nosniff'); // Mencegah MIME type sniffing
+    header('Referrer-Policy: no-referrer-when-downgrade'); // Batasi informasi referrer
+    header('Permissions-Policy: geolocation=(), microphone=(), camera=()'); // Batasi akses perangkat
+    header('Strict-Transport-Security: max-age=31536000; includeSubDomains; preload'); // Paksa HTTPS
+    // header('Content-Security-Policy: default-src \'self\'; script-src \'self\' https://cdn.tailwindcss.com https://cdnjs.cloudflare.com; style-src \'self\' \'unsafe-inline\' https://cdn.tailwindcss.com https://cdnjs.cloudflare.com; img-src \'self\' data:;'); // Batasi sumber konten eksternal
+
+    require_once __DIR__ . '/../app/helpers.php';
+    require_once __DIR__ . '/../vendor/autoload.php';
+
+    use {{NAMESPACE}}\BladeInit;
+    use {{NAMESPACE}}\App\Config;
+    use {{NAMESPACE}}\App\Router;
+    use {{NAMESPACE}}\Middleware\CsrfMiddleware;
+    use {{NAMESPACE}}\Controller\HomeController;
+
+    // Load konfigurasi .env
+    Config::loadEnv();
+
+    // Inisialisasi token CSRF (gunakan metode di middleware agar lebih terstruktur)
+    CsrfMiddleware::generateToken();
+
+    // Definisi route aplikasi
+    Router::add('GET', '/', HomeController::class, 'index');
+    Router::add('GET', '/user', HomeController::class, 'user');
+    Router::add('POST', '/user', HomeController::class, 'createUser', [CsrfMiddleware::class]);
+    Router::add('GET', '/user/information/{id}', HomeController::class, 'detail');
+    Router::add('GET', '/user/{id}/delete', HomeController::class, 'deleteUser');
+    Router::add('POST', '/user/{id}/update', HomeController::class, 'updateUser', [CsrfMiddleware::class]);
+
+    // Inisialisasi Blade untuk templating
+    BladeInit::init();
+
+    // Cache route agar lebih cepat (hanya jika mode production)
+    Router::cacheRoutes();
+
+    // Jalankan routing aplikasi
+    Router::run();
+?>
+
+.env :
+# AWAL ENV
+    APP_ENV=local
+    APP_DEBUG=false
+
+    BASE_URL=https://3000-idx-kiwkiw-native-1741576761089.cluster-a3grjzek65cxex762e4mwrzl46.cloudworkstations.dev
+
+    DB_HOST=
+    DB_NAME=
+    DB_USER=
+    DB_PASS=
+
+    REDIS_HOST=127.0.0.1
+    REDIS_PORT=6379
+# AKHIR ENV
+
+artisan :
+<?php
+    require __DIR__ . '/vendor/autoload.php';
+
+    function output($status, $message) {
+        $statusStyle = [
+            'success' => ["\033[42;30m", "✔️ "], // Background Hijau, Teks Hitam
+            'error'   => ["\033[41;37m", "❌ "], // Background Merah, Teks Putih
+            'info'    => ["\033[44;37m", "ℹ️   "], // Background Biru, Teks Putih
+            'reset'   => "\033[0m"             // Reset Warna
+        ];
+    
+        // Cek apakah status tersedia
+        if (isset($statusStyle[$status])) {
+            $color = $statusStyle[$status][0];
+            $icon = $statusStyle[$status][1];
+    
+            // Tambahkan padding untuk efek blok
+            $formattedMessage = "  $icon " . strtoupper($status) . ": $message  ";
+    
+            // Tampilkan dengan blok warna
+            echo $color . $formattedMessage . $statusStyle['reset'] . "\n";
+        } else {
+            // Default jika status tidak dikenal
+            echo $statusStyle['reset'] . "UNKNOWN STATUS: $message\n";
+        }
+    }
+    
+
+    function handleMigration($className = null, $action = 'up') {
+        $migrationDir = __DIR__ . '/database/migrations/';
+        $migrationFiles = glob($migrationDir . '*.php');
+
+        if ($className) {
+            $migrationClass = "Database\\Migrations\\$className";
+            if (class_exists($migrationClass)) {
+                output('info', "Running Migration: $className...");
+                (new $migrationClass())->$action();
+                output('success', "Migration $action completed for $className.");
+            } else {
+                output('error', "Migration class '$className' not found.");
+            }
+        } else {
+            output('info', ucfirst($action) . " all available migrations...");
+            foreach ($migrationFiles as $file) {
+                require_once $file;
+                $className = 'Database\\Migrations\\' . pathinfo($file, PATHINFO_FILENAME);
+                if (class_exists($className)) {
+                    (new $className())->$action();
+                    output('success', "Migration $action completed for " . pathinfo($file, PATHINFO_FILENAME));
+                }
+            }
+        }
+    }
+
+    function handleSeeder($className = null) {
+        $seederDir = __DIR__ . '/database/seeders/';
+        $seederFiles = glob($seederDir . '*.php');
+
+        if ($className) {
+            $seederClass = "Database\\Seeders\\$className";
+            if (class_exists($seederClass)) {
+                output('info', "Running Seeder: $className...");
+                (new $seederClass())->run();
+                output('success', "Seeding completed for $className.");
+            } else {
+                output('error', "Seeder class '$className' not found.");
+            }
+        } else {
+            output('info', "Running all available seeders...");
+            foreach ($seederFiles as $file) {
+                require_once $file;
+                $className = 'Database\\Seeders\\' . pathinfo($file, PATHINFO_FILENAME);
+                if (class_exists($className)) {
+                    (new $className())->run();
+                    output('success', "Seeding completed for " . pathinfo($file, PATHINFO_FILENAME));
+                }
+            }
+        }
+    }
+
+    function parseOptions($options) {
+        foreach ($options as $option) {
+            if (strpos($option, '--class=') === 0) {
+                return substr($option, 8);
+            }
+        }
+        return null;
+    }
+
+    // Mendapatkan perintah dari CLI
+    $command = $argv[1] ?? null;
+    $options = array_slice($argv, 2);
+    $className = parseOptions($options);
+
+    // Daftar perintah CLI
+    switch ($command) {
+        case 'migrate':
+            handleMigration($className);
+            break;
+
+        case 'rollback':
+            handleMigration($className, 'down');
+            break;
+
+        case 'seed':
+            handleSeeder($className);
+            break;
+
+        case 'migrate:refresh':
+            output('info', "Refreshing migrations...");
+            handleMigration($className, 'down');
+            handleMigration($className, 'up');
+            break;
+
+        case 'migrate:fresh':
+            output('info', "Dropping all tables and re-running migrations with seeding...");
+            handleMigration(null, 'down');
+            handleMigration(null, 'up');
+            handleSeeder();
+            break;
+
+        default:
+            output('error', "Command not recognized. 
+    Available commands:
+    - migrate [--class=ClassName]
+    - rollback [--class=ClassName]
+    - seed [--class=ClassName]
+    - migrate:refresh
+    - migrate:fresh");
+            break;
+    }
+?>
+
+update-namespace.php :
+<?php
+    function handleNamespaceUpdate($newNamespace) {
+        try {
+            $directories = [
+                __DIR__ . '/app',
+                __DIR__ . '/database/migrations',
+                __DIR__ . '/database/seeders'
+            ];
+
+            foreach ($directories as $dir) {
+                $directory = new RecursiveDirectoryIterator($dir);
+                $iterator = new RecursiveIteratorIterator($directory);
+
+                foreach ($iterator as $file) {
+                    if ($file->getExtension() === 'php') {
+                        $content = file_get_contents($file->getPathname());
+                        $updatedContent = str_replace('{{NAMESPACE}}', $newNamespace, $content);
+                        file_put_contents($file->getPathname(), $updatedContent);
+                    }
+                }
+            }
+
+            $indexFile = __DIR__ . '/htdocs/index.php';
+            if (file_exists($indexFile)) {
+                $content = file_get_contents($indexFile);
+                $updatedContent = str_replace('{{NAMESPACE}}', $newNamespace, $content);
+                file_put_contents($indexFile, $updatedContent);
+            }
+
+            $composerFile = __DIR__ . '/composer.json';
+            if (file_exists($composerFile)) {
+                $composer = json_decode(file_get_contents($composerFile), true);
+                
+                if (isset($composer['scripts']['post-autoload-dump'])) {
+                    $composer['scripts']['post-autoload-dump'] = array_map(function ($command) use ($newNamespace) {
+                        return str_replace('{{NAMESPACE}}', $newNamespace, $command);
+                    }, $composer['scripts']['post-autoload-dump']);
+                    
+                    file_put_contents($composerFile, json_encode($composer, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+                }
+            }
+
+            return ['success' => true, 'message' => 'Namespace berhasil diperbarui di semua file dan konfigurasi!'];
+        } catch (Exception $e) {
+            return ['success' => false, 'message' => 'Gagal memperbarui namespace: ' . $e->getMessage()];
+        }
+    }
+
+    function renderUI($title, $message, $isSuccess = true, $namespace = null) {
+        $color = $isSuccess ? 'cyan' : 'red';
+        $icon = $isSuccess ? 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' : 'M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z';
+        ?>
+        <!DOCTYPE html>
+        <html lang="id">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title><?= $title ?></title>
+            <script src="https://cdn.tailwindcss.com"></script>
+        </head>
+        <body class="bg-gradient-to-br from-gray-900 to-gray-800 min-h-screen">
+            <main class="flex justify-center items-center min-h-screen px-4">
+                <div class="bg-gray-800/50 backdrop-blur-lg p-8 rounded-2xl shadow-xl border border-gray-700/50 w-full max-w-md">
+                    <div class="text-center">
+                        <div class="mb-6 flex justify-center">
+                            <svg class="w-16 h-16 <?= 'text-' . $color . '-400' ?>" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="<?= $icon ?>"/>
+                            </svg>
+                        </div>
+                        
+                        <h1 class="text-2xl font-bold text-gray-100 mb-2"><?= $title ?></h1>
+                        <p class="text-gray-400 mb-6"><?= $message ?></p>
+                        
+                        <?php if($namespace): ?>
+                        <div class="bg-gray-700/30 rounded-lg p-4 mb-6">
+                            <code class="text-sm text-<?= $color ?>-400"><?= $namespace ?></code>
+                        </div>
+                        <?php endif; ?>
+                        
+                        <a href="http://<?= $_SERVER['HTTP_HOST'] ?>/kiwkiw-native/htdocs/" class="inline-block bg-gray-700/50 hover:bg-gray-700/70 text-gray-300 px-6 py-2 rounded-lg transition-colors">
+                            Kembali ke Beranda
+                        </a>
+                    </div>
+                </div>
+            </main>
+        </body>
+        </html>
+        <?php
+    }
+
+    if (php_sapi_name() === 'cli') {
+        echo "Apakah Anda yakin ingin mengganti NAMESPACE? (y/n): ";
+        $confirm = trim(fgets(STDIN));
+
+        if (strtolower($confirm) === 'y') {
+            $composer = json_decode(file_get_contents(__DIR__ . '/composer.json'), true);
+            if (!isset($composer['autoload']['psr-4'])) {
+                die("PSR-4 autoload tidak ditemukan di composer.json\n");
+            }
+
+            $newNamespace = array_keys($composer['autoload']['psr-4'])[0];
+            $newNamespace = rtrim($newNamespace, '\\');
+
+            echo "Namespace baru: $newNamespace\n";
+
+            handleNamespaceUpdate($newNamespace);
+        } else {
+            echo "Proses pembaruan namespace dibatalkan.\n";
+        }
+    } else {
+        if (isset($_POST['confirm']) && $_POST['confirm'] === 'yes') {
+            try {
+                $composer = json_decode(file_get_contents(__DIR__ . '/composer.json'), true);
+                if (!isset($composer['autoload']['psr-4'])) {
+                    throw new Exception("PSR-4 autoload tidak ditemukan di composer.json");
+                }
+
+                $newNamespace = array_keys($composer['autoload']['psr-4'])[0];
+                $newNamespace = rtrim($newNamespace, '\\');
+
+                $result = handleNamespaceUpdate($newNamespace);
+                
+                if ($result['success']) {
+                    renderUI(
+                        'Update Berhasil!', 
+                        $result['message'],
+                        true,
+                        $newNamespace
+                    );
+                } else {
+                    renderUI(
+                        'Update Gagal!', 
+                        $result['message'],
+                        false,
+                        $newNamespace
+                    );
+                }
+            } catch (Exception $e) {
+                renderUI(
+                    'Terjadi Kesalahan!', 
+                    $e->getMessage(),
+                    false
+                );
+            }
+        } else {
+            ?>
+            <!DOCTYPE html>
+            <html lang="id">
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>Konfirmasi Update Namespace</title>
+                <script src="https://cdn.tailwindcss.com"></script>
+            </head>
+            <body class="bg-gradient-to-br from-gray-900 to-gray-800 min-h-screen">
+                <main class="flex justify-center items-center min-h-screen px-4">
+                    <div class="bg-gray-800/50 backdrop-blur-lg p-8 rounded-2xl shadow-xl border border-gray-700/50 w-full max-w-md">
+                        <div class="text-center">
+                            <div class="mb-6 flex justify-center">
+                                <div class="w-16 h-16 bg-cyan-400/10 rounded-2xl flex items-center justify-center">
+                                    <svg class="w-8 h-8 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                                    </svg>
+                                </div>
+                            </div>
+                            
+                            <h1 class="text-2xl font-bold text-gray-100 mb-2">Konfirmasi Update Namespace</h1>
+                            <p class="text-gray-400 mb-6">Anda akan mengubah namespace aplikasi. Pastikan sudah melakukan backup!</p>
+                            
+                            <form method="POST" class="flex flex-col gap-4">
+                                <button type="submit" name="confirm" value="yes" 
+                                        class="bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-400 px-6 py-3 rounded-lg 
+                                            transition-all font-medium flex items-center justify-center gap-2">
+                                    Konfirmasi Update
+                                </button>
+                                <a href="/" 
+                                class="border border-gray-600/50 hover:border-gray-600/80 text-gray-300 px-6 py-3 
+                                        rounded-lg transition-colors text-sm">
+                                    Batalkan
+                                </a>
+                            </form>
+                        </div>
+                    </div>
+                </main>
+            </body>
+            </html>
+            <?php
+        }
+    }
+?>

@@ -1,0 +1,6 @@
+  composer require vlucas/phpdotenv   # Untuk konfigurasi .env
+  composer require fakerphp/faker    # Untuk seeder
+  composer require illuminate/view illuminate/events illuminate/filesystem    # Untuk blade templating
+  composer require predis/predis # Untuk Redis cache
+  composer require spatie/image-optimizer #image
+  
