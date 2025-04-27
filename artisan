@@ -133,7 +133,7 @@
 
         $namespace = null;
         while (!$namespace) {
-            $input = getInput("Enter namespace", "App");
+            $input = getInput("Enter namespace", "App\NameProject");
             if (validateNamespace($input)) {
                 $namespace = $input;
             } else {
