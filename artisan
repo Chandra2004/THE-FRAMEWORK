@@ -1,0 +1,776 @@
+<<<<<<< HEAD
+<?php
+    require __DIR__ . '/vendor/autoload.php';
+
+    function output($status, $message) {
+        $statusStyle = [
+            'success' => ["\033[42;30m", "✔️ "],
+            'error'   => ["\033[41;37m", "❌ "],
+            'info'    => ["\033[44;37m", "ℹ️   "],
+            'reset'   => "\033[0m"
+        ];
+
+        if (isset($statusStyle[$status])) {
+            $color = $statusStyle[$status][0];
+            $icon = $statusStyle[$status][1];
+            $formattedMessage = "  $icon " . strtoupper($status) . ": $message  ";
+            echo $color . $formattedMessage . $statusStyle['reset'] . "\n";
+        } else {
+            echo $statusStyle['reset'] . "UNKNOWN STATUS: $message\n";
+        }
+    }
+
+    function getInput($prompt, $default = null) {
+        echo "$prompt" . ($default ? " [$default]: " : ": ");
+        $input = trim(fgets(STDIN));
+        return $input ?: $default;
+    }
+
+    function validateNamespace($namespace) {
+        return preg_match('/^[a-zA-Z][a-zA-Z0-9\\\\]*[a-zA-Z0-9]$/', $namespace);
+    }
+
+    function validateProjectName($name) {
+        return preg_match('/^[a-z0-9]([_.-]?[a-z0-9]+)*\/[a-z0-9](([_.]|-{1,2})?[a-z0-9]+)*$/', $name);
+    }
+
+    function parseOptions($options) {
+        $result = ['class' => null, 'port' => '8080'];
+        foreach ($options as $option) {
+            if (strpos($option, '--class=') === 0) {
+                $result['class'] = substr($option, 8);
+            } elseif (strpos($option, '--port=') === 0) {
+                $result['port'] = substr($option, 7);
+            }
+        }
+        return $result;
+    }
+
+    function getNamespaceFromComposer($directory) {
+        $composer = json_decode(file_get_contents(__DIR__ . '/composer.json'), true);
+        $psr4 = $composer['autoload']['psr-4'] ?? [];
+        foreach ($psr4 as $namespace => $path) {
+            if (rtrim($path, '/') === $directory) {
+                return rtrim($namespace, '\\');
+            }
+        }
+        output('error', "Namespace for directory '$directory' not found in composer.json PSR-4 configuration.");
+        exit(1);
+    }
+
+    function handleMigration($className = null, $action = 'up') {
+        $migrationDir = __DIR__ . '/database/migrations/';
+        $migrationFiles = glob($migrationDir . '*.php');
+
+        if ($className) {
+            $migrationClass = "theframework\\mapro\\Database\\Migrations\\$className";
+            if (class_exists($migrationClass)) {
+                output('info', "Running Migration: $className...");
+                (new $migrationClass())->$action();
+                output('success', "Migration $action completed for $className.");
+            } else {
+                output('error', "Migration class '$className' not found.");
+            }
+        } else {
+            output('info', ucfirst($action) . " all available migrations...");
+            foreach ($migrationFiles as $file) {
+                require_once $file;
+                $className = 'theframework\\mapro\\Database\\Migrations\\' . pathinfo($file, PATHINFO_FILENAME);
+                if (class_exists($className)) {
+                    (new $className())->$action();
+                    output('success', "Migration $action completed for " . pathinfo($file, PATHINFO_FILENAME));
+                }
+            }
+        }
+    }
+
+    function handleSeeder($className = null) {
+        $seederDir = __DIR__ . '/database/seeders/';
+        $seederFiles = glob($seederDir . '*.php');
+
+        if ($className) {
+            $seederClass = "theframework\\mapro\\Database\\Seeders\\$className";
+            if (class_exists($seederClass)) {
+                output('info', "Running Seeder: $className...");
+                (new $seederClass())->run();
+                output('success', "Seeding completed for $className.");
+            } else {
+                output('error', "Seeder class '$seederClass' not found.");
+            }
+        } else {
+            output('info', "Running all available seeders...");
+            foreach ($seederFiles as $file) {
+                require_once $file;
+                $seederClass = 'theframework\\mapro\\Database\\Seeders\\' . pathinfo($file, PATHINFO_FILENAME);
+                if (class_exists($seederClass)) {
+                    (new $seederClass())->run();
+                    output('success', "Seeding completed for " . pathinfo($file, PATHINFO_FILENAME));
+                } else {
+                    output('error', "Seeder class '$seederClass' not found.");
+                }
+            }
+        }
+    }
+
+    function handleServe($port = '8080') {
+        output('info', "Starting development server at http://localhost:$port...");
+        shell_exec("php -S localhost:$port -t htdocs");
+    }
+
+    function handleSetup() {
+        output('info', "Setting up THE-FRAMEWORK...");
+
+        // Get and validate project name
+        $projectName = null;
+        while (!$projectName) {
+            $input = getInput("Enter project name (vendor/project)", "vendor/project");
+            if (validateProjectName($input)) {
+                $projectName = $input;
+            } else {
+                output('error', "Invalid project name. Use format 'vendor/project'.");
+            }
+        }
+
+        $description = getInput("Enter project description", "Your THE-FRAMEWORK PHP MVC Project");
+        $authorName = getInput("Enter author name", "Your Name");
+        $authorEmail = getInput("Enter author email", "your.email@example.com");
+
+        $namespace = null;
+        while (!$namespace) {
+            $input = getInput("Enter namespace", "Vendor\Project");
+            if (validateNamespace($input)) {
+                $namespace = $input;
+            } else {
+                output('error', "Invalid namespace format.");
+            }
+        }
+
+        output('info', "Updating composer.json...");
+        $composer = json_decode(file_get_contents(__DIR__ . '/composer.json'), true);
+        $composer['name'] = $projectName;
+        $composer['description'] = $description;
+        $composer['authors'] = [["name" => $authorName, "email" => $authorEmail]];
+        file_put_contents(__DIR__ . '/composer.json', json_encode($composer, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+        output('success', "composer.json updated.");
+
+        if (!file_exists('.env')) {
+            if (file_exists('.env.example')) {
+                copy('.env.example', '.env');
+                output('success', "Created .env file.");
+            } else {
+                output('error', ".env.example not found.");
+                exit(1);
+            }
+        }
+
+        // Create necessary directories
+        $dirs = [
+            __DIR__ . '/app/Storage/cache',
+            __DIR__ . '/app/Storage/cache/views',
+            __DIR__ . '/app/Storage/logs',
+        ];
+        foreach ($dirs as $dir) {
+            if (!is_dir($dir)) {
+                mkdir($dir, 0755, true);
+                output('success', "Created directory: " . str_replace(__DIR__ . '/', '', $dir));
+            }
+        }
+
+        output('info', "Installing dependencies...");
+        shell_exec('composer install');
+
+        output('info', "Generating autoload files...");
+        shell_exec('composer dump-autoload');
+
+        output('info', "Updating namespaces...");
+        shell_exec("php update-namespace.php " . escapeshellarg($namespace));
+        output('success', "Namespaces updated.");
+
+        output('info', "Generating encryption key...");
+        $key = \Defuse\Crypto\Key::createNewRandomKey()->saveToAsciiSafeString();
+        $envContent = file_get_contents('.env');
+        $envContent = preg_replace('/^ENCRYPTION_KEY=.*$/m', "ENCRYPTION_KEY=$key", $envContent);
+        file_put_contents('.env', $envContent);
+        output('success', "Encryption key generated.");
+
+        output('success', "Setup completed. Run 'php artisan migrate' and 'php artisan seed' separately to set up the database.");
+    }
+
+    function handleCacheClear() {
+        $cacheDir = __DIR__ . '/app/Storage/cache/';
+        $files = glob($cacheDir . '*');
+        foreach ($files as $file) {
+            if (is_file($file)) {
+                unlink($file);
+            }
+        }
+        output('success', "Cache cleared successfully.");
+    }
+
+    function handleRouteCache() {
+        output('info', "Caching routes...");
+        \{{NAMESPACE}}\App\Router::cacheRoutes();
+        output('success', "Routes cached successfully.");
+    }
+
+    function handleMakeCommand($command, $options) {
+        $type = explode(':', $command)[1] ?? null;
+        $name = $options[0] ?? null;
+        $force = in_array('--force', $options);
+
+        if (!$type || !$name) {
+            output('error', "Usage: php artisan make:{controller|model|seeder|migration|middleware} Name [--force]");
+            return;
+        }
+
+        // Validasi nama seeder
+        if ($type === 'seeder' && !str_ends_with($name, 'Seeder')) {
+            output('error', "Seeder name must end with 'Seeder' (e.g., UserSeeder).");
+            return;
+        }
+
+        $basePath = __DIR__;
+
+        switch ($type) {
+            case 'controller':
+                $path = "$basePath/app/Http/Controllers/{$name}.php";
+                $namespace = getNamespaceFromComposer('app/Http/Controllers');
+                $appNamespace = getNamespaceFromComposer('app/App');
+                $helpersNamespace = getNamespaceFromComposer('app') . '\\Helpers';
+                $content = "<?php\n\nnamespace $namespace;\n\nuse {$appNamespace}\\{Config, Database, View, CacheManager};\nuse {$helpersNamespace}\\Helper;\nuse Exception;\n\nclass $name\n{\n    public function index()\n    {\n        //\n    }\n}\n";
+                break;
+
+            case 'model':
+                $path = "$basePath/app/Models/{$name}.php";
+                $namespace = getNamespaceFromComposer('app/Models');
+                $appNamespace = getNamespaceFromComposer('app/App');
+                $content = "<?php\n\nnamespace $namespace;\n\nuse {$appNamespace}\\CacheManager;\nuse {$appNamespace}\\Database;\nuse {$appNamespace}\\Config;\nuse {$appNamespace}\\Logging;\nuse Defuse\\Crypto\\Crypto;\nuse Defuse\\Crypto\\Key;\n\nclass $name extends Database\n{\n    // your code here\n}\n";
+                break;
+
+            case 'seeder':
+                // Create seeder in database/seeders/
+                $path = "$basePath/database/seeders/{$name}.php";
+                $namespace = getNamespaceFromComposer('database/seeders');
+                $appNamespace = getNamespaceFromComposer('app/App');
+                $content = "<?php\n\nnamespace $namespace;\n\nuse {$appNamespace}\\Config;\nuse Defuse\\Crypto\\Crypto;\nuse Defuse\\Crypto\\Key;\nuse Faker\\Factory;\n\nclass $name\n{\n    private \$encryptionKey;\n\n    public function __construct()\n    {\n        Config::loadEnv();\n        \$keyString = Config::get('ENCRYPTION_KEY');\n        if (!\$keyString) {\n            throw new \\Exception('Encryption key not configured.');\n        }\n        \$this->encryptionKey = Key::loadFromAsciiSafeString(\$keyString);\n    }\n\n    public function run()\n    {\n        //\n    }\n}\n";
+                
+                if (file_exists($path) && !$force) {
+                    output('error', "File already exists at $path. Use --force to overwrite.");
+                    return;
+                }
+                if (!is_dir(dirname($path))) {
+                    mkdir(dirname($path), 0755, true);
+                }
+                file_put_contents($path, $content);
+                output('success', "Seeder created successfully: " . str_replace($basePath . '/', '', $path));
+
+                // Create model seeder in app/Models/Seeders/ with name without 'Seeder' suffix
+                $modelSeederName = str_replace('Seeder', '', $name);
+                $modelSeederPath = "$basePath/app/Models/Seeders/{$modelSeederName}.php";
+                $modelSeederNamespace = getNamespaceFromComposer('app/Models/Seeders');
+                $tableName = strtolower($modelSeederName);
+                $modelSeederContent = "<?php\n\nnamespace $modelSeederNamespace;\n\nuse {$appNamespace}\\Database;\n\nclass $modelSeederName\n{\n    protected static Database \$db;\n\n    public static function create(array \$data)\n    {\n        self::\$db = Database::getInstance();\n        \$columns = implode(\", \", array_keys(\$data));\n        \$placeholders = \":\" . implode(\", :\", array_keys(\$data));\n\n        \$sql = \"INSERT INTO {$tableName} (\$columns) VALUES (\$placeholders)\";\n        self::\$db->query(\$sql);\n\n        foreach (\$data as \$key => \$value) {\n            self::\$db->bind(\":\$key\", \$value);\n        }\n\n        return self::\$db->execute();\n    }\n}\n";
+
+                if (file_exists($modelSeederPath) && !$force) {
+                    output('error', "File already exists at $modelSeederPath. Use --force to overwrite.");
+                    return;
+                }
+                if (!is_dir(dirname($modelSeederPath))) {
+                    mkdir(dirname($modelSeederPath), 0755, true);
+                }
+                file_put_contents($modelSeederPath, $modelSeederContent);
+                output('success', "Model seeder created successfully: " . str_replace($basePath . '/', '', $modelSeederPath));
+                return;
+
+            case 'migration':
+                $path = "$basePath/database/migrations/{$name}.php";
+                $namespace = getNamespaceFromComposer('database/migrations');
+                $appNamespace = getNamespaceFromComposer('app/App');
+                $tableName = strtolower(preg_replace('/(?<!^)[A-Z]/', '_$0', str_replace(['Create', 'Table'], '', $name)));
+                $content = "<?php\n\nnamespace $namespace;\n\nuse {$appNamespace}\\Schema;\n\nclass $name\n{\n    public function up()\n    {\n        Schema::create('{$tableName}', function (\$table) {\n            // Define columns\n        });\n    }\n\n    public function down()\n    {\n        Schema::dropIfExists('{$tableName}');\n    }\n}\n";
+                break;
+
+            case 'middleware':
+                $path = "$basePath/app/Middleware/{$name}.php";
+                $namespace = getNamespaceFromComposer('app/Middleware');
+                $middlewareNamespace = getNamespaceFromComposer('app/Middleware');
+                $content = "<?php\n\nnamespace $namespace;\n\nuse {$middlewareNamespace}\\Middleware;\n\nclass $name implements Middleware\n{\n    public function before()\n    {\n        //\n    }\n}\n";
+                break;
+
+            default:
+                output('error', "Unknown make type: $type");
+                return;
+        }
+
+        if (file_exists($path) && !$force) {
+            output('error', "File already exists at $path. Use --force to overwrite.");
+            return;
+        }
+
+        if (!is_dir(dirname($path))) {
+            mkdir(dirname($path), 0755, true);
+        }
+
+        file_put_contents($path, $content);
+        output('success', ucfirst($type) . " created successfully: " . str_replace($basePath . '/', '', $path));
+    }
+
+    // Mulai parsing command
+    $command = $argv[1] ?? null;
+    $options = array_slice($argv, 2);
+    $parsedOptions = parseOptions($options);
+    $className = $parsedOptions['class'];
+
+    switch (true) {
+        case $command === 'migrate':
+            handleMigration($className);
+            break;
+
+        case $command === 'rollback':
+            handleMigration($className, 'down');
+            break;
+
+        case $command === 'seed':
+            handleSeeder($className);
+            break;
+
+        case $command === 'migrate:refresh':
+            output('info', "Refreshing migrations...");
+            handleMigration($className, 'down');
+            handleMigration($className, 'up');
+            break;
+
+        case $command === 'migrate:fresh':
+            output('info', "Dropping all tables and re-running migrations with seeding...");
+            handleMigration(null, 'down');
+            handleMigration(null, 'up');
+            handleSeeder();
+            break;
+
+        case $command === 'serve':
+            handleServe($parsedOptions['port']);
+            break;
+
+        case $command === 'setup':
+            handleSetup();
+            break;
+
+        case $command === 'cache:clear':
+            handleCacheClear();
+            break;
+
+        case $command === 'route:cache':
+            handleRouteCache();
+            break;
+
+        case str_starts_with($command, 'make:'):
+            handleMakeCommand($command, $options);
+            break;
+
+        default:
+            output('error', "Command not recognized. Available commands:\n" .
+                "- setup\n" .
+                "- serve [--port=8000]\n" .
+                "- migrate [--class=ClassName]\n" .
+                "- rollback [--class=ClassName]\n" .
+                "- seed [--class=ClassName]\n" .
+                "- migrate:refresh\n" .
+                "- migrate:fresh\n" .
+                "- cache:clear\n" .
+                "- route:cache\n" .
+                "- make:controller Name [--force]\n" .
+                "- make:model Name [--force]\n" .
+                "- make:seeder Name [--force]\n" .
+                "- make:migration Name [--force]\n" .
+                "- make:middleware Name [--force]");
+            break;
+    }
+=======
+<?php
+    require __DIR__ . '/vendor/autoload.php';
+
+    function output($status, $message) {
+        $statusStyle = [
+            'success' => ["\033[42;30m", "✔️ "],
+            'error'   => ["\033[41;37m", "❌ "],
+            'info'    => ["\033[44;37m", "ℹ️   "],
+            'reset'   => "\033[0m"
+        ];
+
+        if (isset($statusStyle[$status])) {
+            $color = $statusStyle[$status][0];
+            $icon = $statusStyle[$status][1];
+            $formattedMessage = "  $icon " . strtoupper($status) . ": $message  ";
+            echo $color . $formattedMessage . $statusStyle['reset'] . "\n";
+        } else {
+            echo $statusStyle['reset'] . "UNKNOWN STATUS: $message\n";
+        }
+    }
+
+    function getInput($prompt, $default = null) {
+        echo "$prompt" . ($default ? " [$default]: " : ": ");
+        $input = trim(fgets(STDIN));
+        return $input ?: $default;
+    }
+
+    function validateNamespace($namespace) {
+        return preg_match('/^[a-zA-Z][a-zA-Z0-9\\\\]*[a-zA-Z0-9]$/', $namespace);
+    }
+
+    function validateProjectName($name) {
+        return preg_match('/^[a-z0-9]([_.-]?[a-z0-9]+)*\/[a-z0-9](([_.]|-{1,2})?[a-z0-9]+)*$/', $name);
+    }
+
+    function parseOptions($options) {
+        $result = ['class' => null, 'port' => '8080'];
+        foreach ($options as $option) {
+            if (strpos($option, '--class=') === 0) {
+                $result['class'] = substr($option, 8);
+            } elseif (strpos($option, '--port=') === 0) {
+                $result['port'] = substr($option, 7);
+            }
+        }
+        return $result;
+    }
+
+    function getNamespaceFromComposer($directory) {
+        $composer = json_decode(file_get_contents(__DIR__ . '/composer.json'), true);
+        $psr4 = $composer['autoload']['psr-4'] ?? [];
+        foreach ($psr4 as $namespace => $path) {
+            if (rtrim($path, '/') === $directory) {
+                return rtrim($namespace, '\\');
+            }
+        }
+        output('error', "Namespace for directory '$directory' not found in composer.json PSR-4 configuration.");
+        exit(1);
+    }
+
+    function handleMigration($className = null, $action = 'up') {
+        $migrationDir = __DIR__ . '/database/migrations/';
+        $migrationFiles = glob($migrationDir . '*.php');
+
+        if ($className) {
+            $migrationClass = "theframework\\mapro\\Database\\Migrations\\$className";
+            if (class_exists($migrationClass)) {
+                output('info', "Running Migration: $className...");
+                (new $migrationClass())->$action();
+                output('success', "Migration $action completed for $className.");
+            } else {
+                output('error', "Migration class '$className' not found.");
+            }
+        } else {
+            output('info', ucfirst($action) . " all available migrations...");
+            foreach ($migrationFiles as $file) {
+                require_once $file;
+                $className = 'theframework\\mapro\\Database\\Migrations\\' . pathinfo($file, PATHINFO_FILENAME);
+                if (class_exists($className)) {
+                    (new $className())->$action();
+                    output('success', "Migration $action completed for " . pathinfo($file, PATHINFO_FILENAME));
+                }
+            }
+        }
+    }
+
+    function handleSeeder($className = null) {
+        $seederDir = __DIR__ . '/database/seeders/';
+        $seederFiles = glob($seederDir . '*.php');
+
+        if ($className) {
+            $seederClass = "theframework\\mapro\\Database\\Seeders\\$className";
+            if (class_exists($seederClass)) {
+                output('info', "Running Seeder: $className...");
+                (new $seederClass())->run();
+                output('success', "Seeding completed for $className.");
+            } else {
+                output('error', "Seeder class '$seederClass' not found.");
+            }
+        } else {
+            output('info', "Running all available seeders...");
+            foreach ($seederFiles as $file) {
+                require_once $file;
+                $seederClass = 'theframework\\mapro\\Database\\Seeders\\' . pathinfo($file, PATHINFO_FILENAME);
+                if (class_exists($seederClass)) {
+                    (new $seederClass())->run();
+                    output('success', "Seeding completed for " . pathinfo($file, PATHINFO_FILENAME));
+                } else {
+                    output('error', "Seeder class '$seederClass' not found.");
+                }
+            }
+        }
+    }
+
+    function handleServe($port = '8080') {
+        output('info', "Starting development server at http://localhost:$port...");
+        shell_exec("php -S localhost:$port -t htdocs");
+    }
+
+    function handleSetup() {
+        output('info', "Setting up THE-FRAMEWORK...");
+
+        // Get and validate project name
+        $projectName = null;
+        while (!$projectName) {
+            $input = getInput("Enter project name (vendor/project)", "vendor/project");
+            if (validateProjectName($input)) {
+                $projectName = $input;
+            } else {
+                output('error', "Invalid project name. Use format 'vendor/project'.");
+            }
+        }
+
+        $description = getInput("Enter project description", "Your THE-FRAMEWORK PHP MVC Project");
+        $authorName = getInput("Enter author name", "Your Name");
+        $authorEmail = getInput("Enter author email", "your.email@example.com");
+
+        $namespace = null;
+        while (!$namespace) {
+            $input = getInput("Enter namespace", "Vendor\Project");
+            if (validateNamespace($input)) {
+                $namespace = $input;
+            } else {
+                output('error', "Invalid namespace format.");
+            }
+        }
+
+        output('info', "Updating composer.json...");
+        $composer = json_decode(file_get_contents(__DIR__ . '/composer.json'), true);
+        $composer['name'] = $projectName;
+        $composer['description'] = $description;
+        $composer['authors'] = [["name" => $authorName, "email" => $authorEmail]];
+        file_put_contents(__DIR__ . '/composer.json', json_encode($composer, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+        output('success', "composer.json updated.");
+
+        if (!file_exists('.env')) {
+            if (file_exists('.env.example')) {
+                copy('.env.example', '.env');
+                output('success', "Created .env file.");
+            } else {
+                output('error', ".env.example not found.");
+                exit(1);
+            }
+        }
+
+        // Create necessary directories
+        $dirs = [
+            __DIR__ . '/app/Storage/cache',
+            __DIR__ . '/app/Storage/cache/views',
+            __DIR__ . '/app/Storage/logs',
+        ];
+        foreach ($dirs as $dir) {
+            if (!is_dir($dir)) {
+                mkdir($dir, 0755, true);
+                output('success', "Created directory: " . str_replace(__DIR__ . '/', '', $dir));
+            }
+        }
+
+        output('info', "Installing dependencies...");
+        shell_exec('composer install');
+
+        output('info', "Generating autoload files...");
+        shell_exec('composer dump-autoload');
+
+        output('info', "Updating namespaces...");
+        shell_exec("php update-namespace.php " . escapeshellarg($namespace));
+        output('success', "Namespaces updated.");
+
+        output('info', "Generating encryption key...");
+        $key = \Defuse\Crypto\Key::createNewRandomKey()->saveToAsciiSafeString();
+        $envContent = file_get_contents('.env');
+        $envContent = preg_replace('/^ENCRYPTION_KEY=.*$/m', "ENCRYPTION_KEY=$key", $envContent);
+        file_put_contents('.env', $envContent);
+        output('success', "Encryption key generated.");
+
+        output('success', "Setup completed. Run 'php artisan migrate' and 'php artisan seed' separately to set up the database.");
+    }
+
+    function handleCacheClear() {
+        $cacheDir = __DIR__ . '/app/Storage/cache/';
+        $files = glob($cacheDir . '*');
+        foreach ($files as $file) {
+            if (is_file($file)) {
+                unlink($file);
+            }
+        }
+        output('success', "Cache cleared successfully.");
+    }
+
+    function handleRouteCache() {
+        output('info', "Caching routes...");
+        \theframework\mapro\App\Router::cacheRoutes();
+        output('success', "Routes cached successfully.");
+    }
+
+    function handleMakeCommand($command, $options) {
+        $type = explode(':', $command)[1] ?? null;
+        $name = $options[0] ?? null;
+        $force = in_array('--force', $options);
+
+        if (!$type || !$name) {
+            output('error', "Usage: php artisan make:{controller|model|seeder|migration|middleware} Name [--force]");
+            return;
+        }
+
+        // Validasi nama seeder
+        if ($type === 'seeder' && !str_ends_with($name, 'Seeder')) {
+            output('error', "Seeder name must end with 'Seeder' (e.g., UserSeeder).");
+            return;
+        }
+
+        $basePath = __DIR__;
+
+        switch ($type) {
+            case 'controller':
+                $path = "$basePath/app/Http/Controllers/{$name}.php";
+                $namespace = getNamespaceFromComposer('app/Http/Controllers');
+                $appNamespace = getNamespaceFromComposer('app/App');
+                $helpersNamespace = getNamespaceFromComposer('app') . '\\Helpers';
+                $content = "<?php\n\nnamespace $namespace;\n\nuse {$appNamespace}\\{Config, Database, View, CacheManager};\nuse {$helpersNamespace}\\Helper;\nuse Exception;\n\nclass $name\n{\n    public function index()\n    {\n        //\n    }\n}\n";
+                break;
+
+            case 'model':
+                $path = "$basePath/app/Models/{$name}.php";
+                $namespace = getNamespaceFromComposer('app/Models');
+                $appNamespace = getNamespaceFromComposer('app/App');
+                $content = "<?php\n\nnamespace $namespace;\n\nuse {$appNamespace}\\CacheManager;\nuse {$appNamespace}\\Database;\nuse {$appNamespace}\\Config;\nuse {$appNamespace}\\Logging;\nuse Defuse\\Crypto\\Crypto;\nuse Defuse\\Crypto\\Key;\n\nclass $name extends Database\n{\n    // your code here\n}\n";
+                break;
+
+            case 'seeder':
+                // Create seeder in database/seeders/
+                $path = "$basePath/database/seeders/{$name}.php";
+                $namespace = getNamespaceFromComposer('database/seeders');
+                $appNamespace = getNamespaceFromComposer('app/App');
+                $content = "<?php\n\nnamespace $namespace;\n\nuse {$appNamespace}\\Config;\nuse Defuse\\Crypto\\Crypto;\nuse Defuse\\Crypto\\Key;\nuse Faker\\Factory;\n\nclass $name\n{\n    private \$encryptionKey;\n\n    public function __construct()\n    {\n        Config::loadEnv();\n        \$keyString = Config::get('ENCRYPTION_KEY');\n        if (!\$keyString) {\n            throw new \\Exception('Encryption key not configured.');\n        }\n        \$this->encryptionKey = Key::loadFromAsciiSafeString(\$keyString);\n    }\n\n    public function run()\n    {\n        //\n    }\n}\n";
+                
+                if (file_exists($path) && !$force) {
+                    output('error', "File already exists at $path. Use --force to overwrite.");
+                    return;
+                }
+                if (!is_dir(dirname($path))) {
+                    mkdir(dirname($path), 0755, true);
+                }
+                file_put_contents($path, $content);
+                output('success', "Seeder created successfully: " . str_replace($basePath . '/', '', $path));
+
+                // Create model seeder in app/Models/Seeders/ with name without 'Seeder' suffix
+                $modelSeederName = str_replace('Seeder', '', $name);
+                $modelSeederPath = "$basePath/app/Models/Seeders/{$modelSeederName}.php";
+                $modelSeederNamespace = getNamespaceFromComposer('app/Models/Seeders');
+                $tableName = strtolower($modelSeederName);
+                $modelSeederContent = "<?php\n\nnamespace $modelSeederNamespace;\n\nuse {$appNamespace}\\Database;\n\nclass $modelSeederName\n{\n    protected static Database \$db;\n\n    public static function create(array \$data)\n    {\n        self::\$db = Database::getInstance();\n        \$columns = implode(\", \", array_keys(\$data));\n        \$placeholders = \":\" . implode(\", :\", array_keys(\$data));\n\n        \$sql = \"INSERT INTO {$tableName} (\$columns) VALUES (\$placeholders)\";\n        self::\$db->query(\$sql);\n\n        foreach (\$data as \$key => \$value) {\n            self::\$db->bind(\":\$key\", \$value);\n        }\n\n        return self::\$db->execute();\n    }\n}\n";
+
+                if (file_exists($modelSeederPath) && !$force) {
+                    output('error', "File already exists at $modelSeederPath. Use --force to overwrite.");
+                    return;
+                }
+                if (!is_dir(dirname($modelSeederPath))) {
+                    mkdir(dirname($modelSeederPath), 0755, true);
+                }
+                file_put_contents($modelSeederPath, $modelSeederContent);
+                output('success', "Model seeder created successfully: " . str_replace($basePath . '/', '', $modelSeederPath));
+                return;
+
+            case 'migration':
+                $path = "$basePath/database/migrations/{$name}.php";
+                $namespace = getNamespaceFromComposer('database/migrations');
+                $appNamespace = getNamespaceFromComposer('app/App');
+                $tableName = strtolower(preg_replace('/(?<!^)[A-Z]/', '_$0', str_replace(['Create', 'Table'], '', $name)));
+                $content = "<?php\n\nnamespace $namespace;\n\nuse {$appNamespace}\\Schema;\n\nclass $name\n{\n    public function up()\n    {\n        Schema::create('{$tableName}', function (\$table) {\n            // Define columns\n        });\n    }\n\n    public function down()\n    {\n        Schema::dropIfExists('{$tableName}');\n    }\n}\n";
+                break;
+
+            case 'middleware':
+                $path = "$basePath/app/Middleware/{$name}.php";
+                $namespace = getNamespaceFromComposer('app/Middleware');
+                $middlewareNamespace = getNamespaceFromComposer('app/Middleware');
+                $content = "<?php\n\nnamespace $namespace;\n\nuse {$middlewareNamespace}\\Middleware;\n\nclass $name implements Middleware\n{\n    public function before()\n    {\n        //\n    }\n}\n";
+                break;
+
+            default:
+                output('error', "Unknown make type: $type");
+                return;
+        }
+
+        if (file_exists($path) && !$force) {
+            output('error', "File already exists at $path. Use --force to overwrite.");
+            return;
+        }
+
+        if (!is_dir(dirname($path))) {
+            mkdir(dirname($path), 0755, true);
+        }
+
+        file_put_contents($path, $content);
+        output('success', ucfirst($type) . " created successfully: " . str_replace($basePath . '/', '', $path));
+    }
+
+    // Mulai parsing command
+    $command = $argv[1] ?? null;
+    $options = array_slice($argv, 2);
+    $parsedOptions = parseOptions($options);
+    $className = $parsedOptions['class'];
+
+    switch (true) {
+        case $command === 'migrate':
+            handleMigration($className);
+            break;
+
+        case $command === 'rollback':
+            handleMigration($className, 'down');
+            break;
+
+        case $command === 'seed':
+            handleSeeder($className);
+            break;
+
+        case $command === 'migrate:refresh':
+            output('info', "Refreshing migrations...");
+            handleMigration($className, 'down');
+            handleMigration($className, 'up');
+            break;
+
+        case $command === 'migrate:fresh':
+            output('info', "Dropping all tables and re-running migrations with seeding...");
+            handleMigration(null, 'down');
+            handleMigration(null, 'up');
+            handleSeeder();
+            break;
+
+        case $command === 'serve':
+            handleServe($parsedOptions['port']);
+            break;
+
+        case $command === 'setup':
+            handleSetup();
+            break;
+
+        case $command === 'cache:clear':
+            handleCacheClear();
+            break;
+
+        case $command === 'route:cache':
+            handleRouteCache();
+            break;
+
+        case str_starts_with($command, 'make:'):
+            handleMakeCommand($command, $options);
+            break;
+
+        default:
+            output('error', "Command not recognized. Available commands:\n" .
+                "- setup\n" .
+                "- serve [--port=8000]\n" .
+                "- migrate [--class=ClassName]\n" .
+                "- rollback [--class=ClassName]\n" .
+                "- seed [--class=ClassName]\n" .
+                "- migrate:refresh\n" .
+                "- migrate:fresh\n" .
+                "- cache:clear\n" .
+                "- route:cache\n" .
+                "- make:controller Name [--force]\n" .
+                "- make:model Name [--force]\n" .
+                "- make:seeder Name [--force]\n" .
+                "- make:migration Name [--force]\n" .
+                "- make:middleware Name [--force]");
+            break;
+    }
+>>>>>>> 368a412195258ecde38491144f88c8387ff945a2
+?>
