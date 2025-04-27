@@ -1,55 +1,84 @@
 <?php
     try {
-        // Validasi argumen CLI
+        // Validate CLI argument
         if (!isset($argv[1])) {
-            throw new Exception('Namespace tidak diberikan. Gunakan: php update-namespace.php <namespace>');
+            throw new Exception('Namespace not provided. Usage: php update-namespace.php <namespace>');
         }
 
         $newNamespace = rtrim($argv[1], '\\');
         if (!preg_match('/^[a-zA-Z][a-zA-Z0-9\\\\]*[a-zA-Z0-9]$/', $newNamespace)) {
-            throw new Exception('Namespace tidak valid. Gunakan karakter alfanumerik dan backslash tanpa spasi atau karakter khusus.');
+            throw new Exception('Invalid namespace. Use alphanumeric characters and backslashes without spaces or special characters.');
         }
 
-        // Baca composer.json
+        // Read composer.json
         $composerFile = __DIR__ . '/composer.json';
         if (!file_exists($composerFile)) {
-            throw new Exception('File composer.json tidak ditemukan.');
+            throw new Exception('composer.json file not found.');
         }
         $composer = json_decode(file_get_contents($composerFile), true);
         if (!isset($composer['autoload']['psr-4'])) {
-            throw new Exception('PSR-4 autoload tidak ditemukan di composer.json.');
+            throw new Exception('PSR-4 autoload not found in composer.json.');
         }
 
-        // Update autoload di composer.json
-        $newAutoload = [];
-        foreach ($composer['autoload']['psr-4'] as $ns => $path) {
-            $newNs = str_replace('{{NAMESPACE}}', $newNamespace, $ns);
-            $newAutoload[$newNs] = $path;
-        }
+        // Define new PSR-4 mappings
+        $newAutoload = [
+            "$newNamespace\\" => "app/",
+            "$newNamespace\\App\\" => "app/App/",
+            "$newNamespace\\Controller\\" => "app/Controller/",
+            "$newNamespace\\Middleware\\" => "app/Middleware/",
+            "$newNamespace\\Models\\" => "app/Models/",
+            "$newNamespace\\Models\\Seeders\\" => "app/Models/Seeders/",
+            "Database\\Migrations\\" => "database/migrations/",
+            "Database\\Seeders\\" => "database/seeders/"
+        ];
         $composer['autoload']['psr-4'] = $newAutoload;
 
-        // Update skrip post-autoload-dump
-        if (isset($composer['scripts']['post-autoload-dump'])) {
-            $composer['scripts']['post-autoload-dump'] = array_map(function ($command) use ($newNamespace) {
-                return str_replace('{{NAMESPACE}}', $newNamespace, $command);
-            }, $composer['scripts']['post-autoload-dump']);
-        }
-
-        // Simpan composer.json
+        // Save composer.json
         file_put_contents($composerFile, json_encode($composer, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
-        echo "composer.json diperbarui.\n";
+        echo "composer.json updated.\n";
 
-        // Direktori untuk diperbarui
+        // Directories and files to update
         $directories = [
             __DIR__ . '/app',
             __DIR__ . '/database/migrations',
             __DIR__ . '/database/seeders'
         ];
+        $additionalFiles = [
+            __DIR__ . '/htdocs/index.php'
+        ];
 
-        // Update file PHP
+        // Function to update namespace in a file
+        function updateFileNamespace($file, $newNamespace) {
+            $content = file_get_contents($file);
+            $originalContent = $content;
+
+            // Replace {{NAMESPACE}} if present
+            if (strpos($content, '{{NAMESPACE}}') !== false) {
+                $content = str_replace('{{NAMESPACE}}', $newNamespace, $content);
+            } else {
+                // Update existing namespace and use statements
+                $content = preg_replace(
+                    '/namespace\s+[^;]+;/',
+                    "namespace $newNamespace;",
+                    $content
+                );
+                $content = preg_replace(
+                    '/use\s+[^;]+;/',
+                    "use $newNamespace\\App\\{Config, Database, Schema, View, CacheManager};",
+                    $content
+                );
+            }
+
+            if ($content !== $originalContent) {
+                file_put_contents($file, $content);
+                echo "Updated $file\n";
+            }
+        }
+
+        // Update PHP files in directories
         foreach ($directories as $dir) {
             if (!is_dir($dir)) {
-                echo "Direktori $dir tidak ditemukan, dilewati.\n";
+                echo "Directory $dir not found, skipping.\n";
                 continue;
             }
             $directory = new RecursiveDirectoryIterator($dir);
@@ -57,28 +86,23 @@
 
             foreach ($iterator as $file) {
                 if ($file->getExtension() === 'php') {
-                    $content = file_get_contents($file->getPathname());
-                    $updatedContent = str_replace('{{NAMESPACE}}', $newNamespace, $content);
-                    echo "Mengupdate {$file->getPathname()}:\n$updatedContent\n---\n";
-                    file_put_contents($file->getPathname(), $updatedContent);
+                    updateFileNamespace($file->getPathname(), $newNamespace);
                 }
             }
         }
 
-        // Update index.php
-        $indexFile = __DIR__ . '/htdocs/index.php';
-        if (file_exists($indexFile)) {
-            $content = file_get_contents($indexFile);
-            $updatedContent = str_replace('{{NAMESPACE}}', $newNamespace, $content);
-            echo "Mengupdate $indexFile:\n$updatedContent\n---\n";
-            file_put_contents($indexFile, $updatedContent);
-        } else {
-            echo "File $indexFile tidak ditemukan.\n";
+        // Update additional files
+        foreach ($additionalFiles as $file) {
+            if (file_exists($file)) {
+                updateFileNamespace($file, $newNamespace);
+            } else {
+                echo "File $file not found.\n";
+            }
         }
 
-        echo "Namespace berhasil diupdate ke $newNamespace.\n";
+        echo "Namespace successfully updated to $newNamespace.\n";
     } catch (Exception $e) {
-        echo "Gagal mengupdate namespace: " . $e->getMessage() . "\n";
+        echo "Failed to update namespace: " . $e->getMessage() . "\n";
         exit(1);
     }
 ?>
