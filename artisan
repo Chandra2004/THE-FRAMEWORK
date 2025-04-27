@@ -114,7 +114,7 @@
     }
 
     function handleSetup() {
-        output('info', "Setting up Kiwkiw-Native...");
+        output('info', "Setting up THE-FRAMEWORK...");
 
         // Get and validate project name
         $projectName = null;
@@ -127,13 +127,13 @@
             }
         }
 
-        $description = getInput("Enter project description", "Your Kiwkiw Native PHP MVC Project");
+        $description = getInput("Enter project description", "Your THE-FRAMEWORK PHP MVC Project");
         $authorName = getInput("Enter author name", "Your Name");
         $authorEmail = getInput("Enter author email", "your.email@example.com");
 
         $namespace = null;
         while (!$namespace) {
-            $input = getInput("Enter namespace", "Vendor\\Project");
+            $input = getInput("Enter namespace", "App");
             if (validateNamespace($input)) {
                 $namespace = $input;
             } else {
@@ -162,14 +162,12 @@
         output('info', "Installing dependencies...");
         shell_exec('composer install');
 
+        output('info', "Generating autoload files...");
+        shell_exec('composer dump-autoload');
+
         output('info', "Updating namespaces...");
         shell_exec("php update-namespace.php " . escapeshellarg($namespace));
         output('success', "Namespaces updated.");
-
-        output('info', "Running migrations and seeders...");
-        handleMigration(null, 'up');
-        handleSeeder();
-        output('success', "Database setup complete.");
 
         output('info', "Generating encryption key...");
         $key = \Defuse\Crypto\Key::createNewRandomKey()->saveToAsciiSafeString();
@@ -177,6 +175,8 @@
         $envContent = preg_replace('/^ENCRYPTION_KEY=.*$/m', "ENCRYPTION_KEY=$key", $envContent);
         file_put_contents('.env', $envContent);
         output('success', "Encryption key generated.");
+
+        output('success', "Setup completed. Run 'php artisan migrate' and 'php artisan seed' separately to set up the database.");
     }
 
     function handleMakeCommand($command, $options) {
@@ -247,7 +247,7 @@
                 $namespace = getNamespaceFromComposer('database/migrations');
                 $appNamespace = getNamespaceFromComposer('app/App');
                 $tableName = strtolower(preg_replace('/(?<!^)[A-Z]/', '_$0', str_replace(['Create', 'Table'], '', $name)));
-                $content = "<?php\n\nnamespace $namespace;\n\nuse {$appNamespace}\\Schema;\n\nclass $name\n{\n    public function up()\n    {\n        Schema::create('{$tableName}',taking function (\$table) {\n            // Define columns\n        });\n    }\n\n    public function down()\n    {\n        Schema::dropIfExists('{$tableName}');\n    }\n}\n";
+                $content = "<?php\n\nnamespace $namespace;\n\nuse {$appNamespace}\\Schema;\n\nclass $name\n{\n    public function up()\n    {\n        Schema::create('{$tableName}', function (\$table) {\n            // Define columns\n        });\n    }\n\n    public function down()\n    {\n        Schema::dropIfExists('{$tableName}');\n    }\n}\n";
                 break;
 
             case 'middleware':
@@ -325,6 +325,8 @@
                 "- migrate [--class=ClassName]\n" .
                 "- rollback [--class=ClassName]\n" .
                 "- seed [--class=ClassName]\n" .
+                "- migrate:refresh\n" .
+                "- migrate:fresh\n" .
                 "- make:controller Name\n" .
                 "- make:model Name\n" .
                 "- make:seeder Name\n" .
