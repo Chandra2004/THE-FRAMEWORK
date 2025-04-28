@@ -88,6 +88,13 @@
             return $this;
         }
     
+        // Metode baru untuk mendefinisikan composite primary key
+        public function compositePrimaryKey(array $columns) {
+            $columnList = implode('`, `', $columns);
+            $this->primaryKey = "`$columnList`";
+            return $this;
+        }
+    
         public function getColumns() {
             return $this->columns;
         }
