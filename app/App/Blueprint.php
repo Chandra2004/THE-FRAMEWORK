@@ -5,7 +5,7 @@
         private $table;
         private $columns = [];
         private $primaryKey = null;
-        private $foreignKeys = [];  // Tambahkan properti ini untuk menyimpan foreign key
+        private $foreignKeys = [];
     
         public function __construct($table) {
             $this->table = $table;
@@ -62,9 +62,29 @@
             return $this;
         }
     
-        // Tambahkan method untuk mendefinisikan foreign key
         public function foreign($column, $referenceTable, $referenceColumn, $onDelete = 'RESTRICT', $onUpdate = 'CASCADE') {
             $this->foreignKeys[] = "FOREIGN KEY (`$column`) REFERENCES `$referenceTable` (`$referenceColumn`) ON DELETE $onDelete ON UPDATE $onUpdate";
+            return $this;
+        }
+    
+        public function enum($column, array $allowedValues) {
+            $values = implode("','", array_map('addslashes', $allowedValues));
+            $this->columns[] = "`$column` ENUM('$values')";
+            return $this;
+        }
+    
+        public function decimal($column, $total, $places) {
+            $this->columns[] = "`$column` DECIMAL($total,$places)";
+            return $this;
+        }
+    
+        public function date($column) {
+            $this->columns[] = "`$column` DATE";
+            return $this;
+        }
+    
+        public function index($column) {
+            $this->columns[] = "INDEX idx_$column (`$column`)";
             return $this;
         }
     
@@ -77,7 +97,7 @@
         }
     
         public function getForeignKeys() {
-            return $this->foreignKeys;  // Mengembalikan foreign keys
+            return $this->foreignKeys;
         }
     }
 ?>
