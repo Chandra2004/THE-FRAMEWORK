@@ -58,6 +58,11 @@
         $migrationDir = __DIR__ . '/database/migrations/';
         $migrationFiles = glob($migrationDir . '*.php');
 
+        // Urutkan file migrasi berdasarkan nama file (berdasarkan timestamp)
+        usort($migrationFiles, function ($a, $b) {
+            return strcmp(basename($a), basename($b));
+        });
+
         if ($className) {
             $migrationClass = "Database\\Migrations\\$className";
             if (class_exists($migrationClass)) {
