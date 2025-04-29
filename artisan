@@ -57,29 +57,55 @@
     function handleMigration($className = null, $action = 'up') {
         $migrationDir = __DIR__ . '/database/migrations/';
         $migrationFiles = glob($migrationDir . '*.php');
-
-        // Urutkan file migrasi berdasarkan nama file (timestamp)
+    
         usort($migrationFiles, function ($a, $b) {
             return strcmp(basename($a), basename($b));
         });
-
+    
         if ($className) {
-            $migrationClass = "Database\\Migrations\\$className";
-            if (class_exists($migrationClass)) {
-                output('info', "Running Migration: $className...");
-                (new $migrationClass())->$action();
-                output('success', "Migration $action completed for $className.");
+            $migrationClass = 'Database\\Migrations\\' . $className;
+            $file = $migrationDir . $className . '.php';
+            if (file_exists($file)) {
+                if (!class_exists($migrationClass)) {
+                    output('info', "Memuat file: $file");
+                    require_once $file;
+                } else {
+                    output('info', "Kelas $migrationClass sudah dimuat, melewati file: $file");
+                }
+                if (class_exists($migrationClass)) {
+                    try {
+                        output('info', "Menjalankan Migrasi: $className...");
+                        (new $migrationClass())->$action();
+                        output('success', "Migrasi $action selesai untuk $className.");
+                    } catch (Throwable $e) {
+                        output('error', "Error migrasi: " . $e->getMessage());
+                    }
+                } else {
+                    output('error', "Kelas migrasi '$migrationClass' tidak ditemukan.");
+                }
             } else {
-                output('error', "Migration class '$className' not found.");
+                output('error', "File migrasi untuk kelas '$className' tidak ditemukan.");
             }
         } else {
-            output('info', ucfirst($action) . " all available migrations...");
+            output('info', ucfirst($action) . " semua migrasi yang tersedia...");
             foreach ($migrationFiles as $file) {
-                require_once $file;
-                $className = 'Database\\Migrations\\' . pathinfo($file, PATHINFO_FILENAME);
-                if (class_exists($className)) {
-                    (new $className())->$action();
-                    output('success', "Migration $action completed for " . pathinfo($file, PATHINFO_FILENAME));
+                $migrationClass = 'Database\\Migrations\\Migration_' . pathinfo($file, PATHINFO_FILENAME);
+                if (!class_exists($migrationClass)) {
+                    output('info', "Memuat file: $file");
+                    require_once $file;
+                } else {
+                    output('info', "Kelas $migrationClass sudah dimuat, melewati file: $file");
+                }
+                if (class_exists($migrationClass)) {
+                    try {
+                        output('info', "Menjalankan Migrasi: " . pathinfo($file, PATHINFO_FILENAME) . "...");
+                        (new $migrationClass())->$action();
+                        output('success', "Migrasi $action selesai untuk " . pathinfo($file, PATHINFO_FILENAME));
+                    } catch (Throwable $e) {
+                        output('error', "Error migrasi pada " . pathinfo($file, PATHINFO_FILENAME) . ": " . $e->getMessage());
+                    }
+                } else {
+                    output('error', "Kelas migrasi '$migrationClass' tidak ditemukan.");
                 }
             }
         }
@@ -248,12 +274,12 @@
             case 'migration':
                 // Tambahkan timestamp pada nama file migrasi
                 $timestamp = date('Y_m_d_His');
-                $migrationFileName = "{$timestamp}_{$name}.php";
-                $path = "$basePath/database/migrations/{$migrationFileName}";
+                $migrationFileName = "{$timestamp}_{$name}";
+                $path = "$basePath/database/migrations/{$migrationFileName}.php";
                 $namespace = getNamespaceFromComposer('database/migrations');
                 $appNamespace = getNamespaceFromComposer('app/App');
                 $tableName = strtolower(preg_replace('/(?<!^)[A-Z]/', '_$0', str_replace(['Create', 'Table'], '', $name)));
-                $content = "<?php\n\nnamespace $namespace;\n\nuse {$appNamespace}\\Schema;\n\nclass $name\n{\n    public function up()\n    {\n        Schema::create('{$tableName}', function (\$table) {\n            // Define columns\n        });\n    }\n\n    public function down()\n    {\n        Schema::dropIfExists('{$tableName}');\n    }\n}\n";
+                $content = "<?php\n\nnamespace $namespace;\n\nuse {$appNamespace}\\Schema;\n\nclass Migration_{$migrationFileName}\n{\n    public function up()\n    {\n        Schema::create('{$tableName}', function (\$table) {\n            // Define columns\n        });\n    }\n\n    public function down()\n    {\n        Schema::dropIfExists('{$tableName}');\n    }\n}\n";
                 break;
 
             case 'middleware':
