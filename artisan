@@ -272,7 +272,6 @@
                 return;
 
             case 'migration':
-                // Tambahkan timestamp pada nama file migrasi
                 $timestamp = date('Y_m_d_His');
                 $migrationFileName = "{$timestamp}_{$name}";
                 $path = "$basePath/database/migrations/{$migrationFileName}.php";
