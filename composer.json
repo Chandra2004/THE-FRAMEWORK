@@ -1,0 +1,47 @@
+{
+    "name": "testing/freetest",
+    "description": "testing for free hosting project",
+    "autoload": {
+        "psr-4": {
+            "{{NAMESPACE}}\\": "app/",
+            "{{NAMESPACE}}\\App\\": "app/App/",
+            "{{NAMESPACE}}\\Http\\Controllers\\": "app/Http/Controllers/",
+            "{{NAMESPACE}}\\Middleware\\": "app/Middleware/",
+            "{{NAMESPACE}}\\Models\\": "app/Models/",
+            "{{NAMESPACE}}\\Models\\Seeders\\": "app/Models/Seeders/",
+            "Database\\Migrations\\": "database/migrations/",
+            "Database\\Seeders\\": "database/seeders/"
+        }
+    },
+    "authors": [
+        {
+            "name": "chandra",
+            "email": "chandratriantomo123@gmail.com"
+        }
+    ],
+    "require": {
+        "php": "^8.0",
+        "vlucas/phpdotenv": "^5.6",
+        "fakerphp/faker": "^1.20",
+        "illuminate/view": "^9.0",
+        "illuminate/events": "^9.0",
+        "illuminate/filesystem": "^9.0",
+        "respect/validation": "^2.0",
+        "monolog/monolog": "^2.0",
+        "defuse/php-encryption": "^2.2"
+    },
+    "require-dev": {
+        "roave/security-advisories": "dev-master"
+    },
+    "scripts": {
+        "post-autoload-dump": [
+            "{{NAMESPACE}}\\App\\Router::cacheRoutes"
+        ],
+        "post-install-cmd": [
+            "php update-namespace.php"
+        ],
+        "post-update-cmd": [
+            "php update-namespace.php"
+        ]
+    }
+}
