@@ -284,8 +284,4 @@ Kami terbuka untuk kontribusi! Silakan buat pull request atau hubungi:
 
 * WhatsApp: 085730676143
 * Email   : [chandratriantomo123@gmail.com](mailto:chandratriantomo123@gmail.com)
-* Website : [https://www.kiwkiw-native.free.nf](https://www.kiwkiw-native.free.nf)
-
----
-
-Jika kamu ingin, saya bisa bantu ubah ini ke dalam file `README.md` langsung dalam format Markdown. Cukup kirimkan file aslinya atau beri tahu strukturnya.
+* Website : [https://www.kiwkiw-native.free.nf](https://www.the-framework.ct.ws)
