@@ -1,7 +1,3 @@
-Berikut versi **lengkap dokumentasi THE-FRAMEWORK** yang telah disisipkan informasi bahwa framework ini **khusus untuk hosting berbayar/premium**, tepat setelah bagian pengenalan:
-
----
-
 # THE-FRAMEWORK - MVC Native PHP Framework
 
 ## 📌 Pengenalan
