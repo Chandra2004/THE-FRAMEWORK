@@ -10,8 +10,8 @@
         href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🐦</text></svg>">
 
     <!-- Primary Meta Tags -->
-    <title>User Management - Kiwkiw MVC</title>
-    <meta name="description" content="User management interface for Kiwkiw MVC framework">
+    <title>User Management - THE FRAMEWORK</title>
+    <meta name="description" content="User management interface for THE FRAMEWORK framework">
     <meta name="keywords" content="User Management, PHP Framework, MVC, Database">
     <meta name="author" content="Chandra Tri Antomo">
 
@@ -60,11 +60,11 @@
                 <div class="flex items-center">
                     <span
                         class="text-2xl font-bold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
-                        Kiwkiw MVC
+                        THE FRAMEWORK
                     </span>
                 </div>
                 <div class="hidden md:flex items-center space-x-8">
-                    <a href="https://github.com/Chandra2004/Kiwkiw-Native.git" target="_blank"
+                    <a href="https://github.com/Chandra2004/THE-FRAMEWORK" target="_blank"
                         class="text-gray-400 hover:text-cyan-400 transition-all flex items-center">
                         <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                             <path fill-rule="evenodd"
@@ -306,7 +306,7 @@
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
             <div class="text-center text-gray-500">
                 <p class="text-sm">
-                    © 2024 Kiwkiw MVC •
+                    © 2024 THE FRAMEWORK •
                     <a href="https://www.instagram.com/chandratriantomo.2077/" target="_blank"
                         class="hover:text-cyan-400 transition-all">
                         Crafted by Chandra Tri A
