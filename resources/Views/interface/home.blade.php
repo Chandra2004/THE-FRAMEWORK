@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     
     <!-- Primary Meta Tags -->
-    <title>Kiwkiw MVC - Modern PHP Framework with Database Migrations & REST API</title>
-    <meta name="description" content="Kiwkiw MVC: High-performance PHP framework with Laravel-like features including database migrations, seeders, RESTful API support, and elegant syntax. Perfect for modern web development.">
+    <title>THE FRAMEWORK - Modern PHP Framework with Database Migrations & REST API</title>
+    <meta name="description" content="THE FRAMEWORK: High-performance PHP framework with Laravel-like features including database migrations, seeders, RESTful API support, and elegant syntax. Perfect for modern web development.">
     <meta name="keywords" content="PHP Framework, MVC, Database Migrations, REST API, Web Development, Laravel Alternative, MySQL, Composer">
     <meta name="author" content="Chandra Tri Antomo">
     <meta name="robots" content="index, follow">
@@ -14,14 +14,14 @@
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://kiwkiw-mvc.tech/">
-    <meta property="og:title" content="Kiwkiw MVC - Modern PHP Framework for Web Artisans">
-    <meta property="og:description" content="Build scalable web applications with Kiwkiw MVC framework featuring database migrations, REST API support, and enterprise-grade security">
+    <meta property="og:title" content="THE FRAMEWORK - Modern PHP Framework for Web Artisans">
+    <meta property="og:description" content="Build scalable web applications with THE FRAMEWORK framework featuring database migrations, REST API support, and enterprise-grade security">
     <meta property="og:image" content="https://kiwkiw-mvc.tech/images/og-banner.jpg">
 
     <!-- Twitter -->
     <meta property="twitter:card" content="summary_large_image">
     <meta property="twitter:url" content="https://kiwkiw-mvc.tech/">
-    <meta property="twitter:title" content="Kiwkiw MVC - Modern PHP Framework for Web Artisans">
+    <meta property="twitter:title" content="THE FRAMEWORK - Modern PHP Framework for Web Artisans">
     <meta property="twitter:description" content="High-performance PHP framework with Laravel-like features and minimalist architecture">
     <meta property="twitter:image" content="https://kiwkiw-mvc.tech/images/og-banner.jpg">
 
@@ -45,7 +45,7 @@
     {
         "@context": "https://schema.org",
         "@type": "SoftwareApplication",
-        "name": "Kiwkiw MVC",
+        "name": "THE FRAMEWORK",
         "operatingSystem": "PHP 8+",
         "applicationCategory": "Web Framework",
         "softwareVersion": "1.0.0",
@@ -86,12 +86,12 @@
             <div class="flex justify-between h-16 items-center">
                 <div class="flex items-center">
                     <span class="text-2xl font-bold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
-                        Kiwkiw MVC
+                        THE FRAMEWORK
                     </span>
                 </div>
                 
                 <div class="hidden md:flex items-center space-x-8">
-                    <a href="https://github.com/Chandra2004/Kiwkiw-Native.git" 
+                    <a href="https://github.com/Chandra2004/THE-FRAMEWORK" 
                        target="_blank" 
                        rel="noopener noreferrer"
                        class="text-gray-400 hover:text-cyan-400 transition-all font-medium flex items-center"
@@ -117,7 +117,7 @@
                     </span>
                 </h1>
                 <p class="text-xl text-gray-400 mb-8 max-w-3xl mx-auto">
-                    Kiwkiw MVC offers developers an elegant toolkit featuring database migrations, REST API support,
+                    THE FRAMEWORK offers developers an elegant toolkit featuring database migrations, REST API support,
                     and enterprise-grade security in a lightweight package.
                 </p>
                 
@@ -128,7 +128,7 @@
                        class="bg-gradient-to-r from-cyan-500 to-blue-600 text-white px-8 py-4 rounded-lg font-medium 
                               hover:from-cyan-600 hover:to-blue-700 transition-all shadow-2xl hover:shadow-cyan-500/20
                               flex items-center gap-2"
-                       aria-label="Get Started with Kiwkiw MVC">
+                       aria-label="Get Started with THE FRAMEWORK">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
                         </svg>
@@ -214,7 +214,7 @@
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
             <div class="text-center text-gray-500">
                 <p class="text-sm">
-                    © 2024 Kiwkiw MVC • 
+                    © 2024 THE FRAMEWORK • 
                     <a href="https://www.instagram.com/chandratriantomo.2077/" 
                        target="_blank" 
                        rel="noopener noreferrer"
@@ -223,7 +223,7 @@
                     </a>
                 </p>
                 <div class="mt-2 flex justify-center space-x-4">
-                    <a href="https://github.com/Chandra2004/Kiwkiw-Native.git" 
+                    <a href="https://github.com/Chandra2004/THE-FRAMEWORK" 
                        target="_blank"
                        rel="noopener noreferrer"
                        class="hover:text-cyan-400 transition-all"
